@@ -25,7 +25,8 @@ impl Mempool {
             return Err("duplicate transaction");
         }
 
-        self.transactions.insert(transaction.id.clone(), transaction);
+        self.transactions
+            .insert(transaction.id.clone(), transaction);
         Ok(())
     }
 
