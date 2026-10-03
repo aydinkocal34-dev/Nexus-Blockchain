@@ -63,11 +63,7 @@ impl Transaction {
             .is_ok()
     }
 
-    pub fn with_signature(
-        mut self,
-        public_key: [u8; 32],
-        signature: [u8; 64],
-    ) -> Self {
+    pub fn with_signature(mut self, public_key: [u8; 32], signature: [u8; 64]) -> Self {
         self.public_key = Some(public_key);
         self.signature = Some(signature);
         self
