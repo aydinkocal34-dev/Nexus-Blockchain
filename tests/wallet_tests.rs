@@ -37,3 +37,18 @@ fn transaction_signature_breaks_after_tampering() {
 
     assert!(!signed.verify_signature());
 }
+
+#[test]
+fn signed_transaction_round_trips_through_json() {
+    let wallet = Wallet::new();
+    let unsigned = Transaction::new("tx-3", wallet.address(), "nexus-recipient", 100, 1);
+    let signature = wallet.sign(&unsigned.signing_bytes());
+    let signed = unsigned.with_signature(wallet.public_key_bytes(), signature);
+
+    let encoded = serde_json::to_string(&signed).expect("transaction must serialize");
+    let decoded: Transaction =
+        serde_json::from_str(&encoded).expect("transaction must deserialize");
+
+    assert_eq!(decoded, signed);
+    assert!(decoded.verify_signature());
+}
