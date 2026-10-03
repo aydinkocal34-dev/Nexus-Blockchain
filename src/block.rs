@@ -12,17 +12,36 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(index: u64, timestamp: u64, previous_hash: impl Into<String>, transactions: Vec<Transaction>) -> Self {
-        let mut block = Self { index, timestamp, previous_hash: previous_hash.into(), transactions, hash: String::new() };
+    pub fn new(
+        index: u64,
+        timestamp: u64,
+        previous_hash: impl Into<String>,
+        transactions: Vec<Transaction>,
+    ) -> Self {
+        let mut block = Self {
+            index,
+            timestamp,
+            previous_hash: previous_hash.into(),
+            transactions,
+            hash: String::new(),
+        };
         block.hash = block.calculate_hash();
         block
     }
 
     pub fn calculate_hash(&self) -> String {
-        let payload = serde_json::to_vec(&(self.index, self.timestamp, &self.previous_hash, &self.transactions)).expect("block serialization must succeed");
+        let payload = serde_json::to_vec(&(
+            self.index,
+            self.timestamp,
+            &self.previous_hash,
+            &self.transactions,
+        ))
+        .expect("block serialization must succeed");
         let digest = Sha256::digest(payload);
         format!("{digest:x}")
     }
 
-    pub fn is_hash_valid(&self) -> bool { self.hash == self.calculate_hash() }
+    pub fn is_hash_valid(&self) -> bool {
+        self.hash == self.calculate_hash()
+    }
 }
