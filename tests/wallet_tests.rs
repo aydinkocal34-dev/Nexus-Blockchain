@@ -15,13 +15,7 @@ fn signed_transaction_verifies() {
     let wallet = Wallet::new();
     let public_key = wallet.public_key_bytes();
 
-    let unsigned = Transaction::new(
-        "tx-1",
-        wallet.address(),
-        "nexus-recipient",
-        100,
-        1,
-    );
+    let unsigned = Transaction::new("tx-1", wallet.address(), "nexus-recipient", 100, 1);
     let signature = wallet.sign(&unsigned.signing_bytes());
 
     let signed = unsigned.with_signature(public_key, signature);
@@ -33,13 +27,7 @@ fn signed_transaction_verifies() {
 #[test]
 fn transaction_signature_breaks_after_tampering() {
     let wallet = Wallet::new();
-    let unsigned = Transaction::new(
-        "tx-2",
-        wallet.address(),
-        "nexus-recipient",
-        100,
-        1,
-    );
+    let unsigned = Transaction::new("tx-2", wallet.address(), "nexus-recipient", 100, 1);
     let signature = wallet.sign(&unsigned.signing_bytes());
     let mut signed = unsigned.with_signature(wallet.public_key_bytes(), signature);
 
