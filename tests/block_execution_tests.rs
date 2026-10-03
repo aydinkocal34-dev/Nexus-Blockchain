@@ -1,11 +1,6 @@
 use nexus_blockchain::{Blockchain, Transaction, Wallet};
 
-fn signed_transaction(
-    wallet: &Wallet,
-    recipient: &str,
-    amount: u64,
-    nonce: u64,
-) -> Transaction {
+fn signed_transaction(wallet: &Wallet, recipient: &str, amount: u64, nonce: u64) -> Transaction {
     let tx = Transaction::new(
         format!("tx-{nonce}"),
         wallet.address(),
