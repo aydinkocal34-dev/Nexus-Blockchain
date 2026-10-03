@@ -6,7 +6,13 @@ fn signed_transaction(
     amount: u64,
     nonce: u64,
 ) -> Transaction {
-    let tx = Transaction::new(wallet.address(), wallet.address(), recipient, amount, nonce);
+    let tx = Transaction::new(
+        wallet.address(),
+        wallet.address(),
+        recipient,
+        amount,
+        nonce,
+    );
     let signature = wallet.sign(&tx.signing_bytes());
     tx.with_signature(wallet.public_key_bytes(), signature)
 }
@@ -36,7 +42,10 @@ fn rejects_insufficient_balance() {
     state.credit(sender.address(), 20);
 
     let tx = signed_transaction(&sender, &recipient.address(), 21, 1);
-    assert_eq!(state.apply_transaction(&tx), Err("insufficient balance"));
+    assert_eq!(
+        state.apply_transaction(&tx),
+        Err("insufficient balance")
+    );
 }
 
 #[test]
