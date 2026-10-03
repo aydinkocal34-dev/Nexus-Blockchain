@@ -20,10 +20,7 @@ impl Node {
         self.mempool.submit(transaction)
     }
 
-    pub fn mine_pending(
-        &mut self,
-        timestamp: u64,
-    ) -> Result<usize, &'static str> {
+    pub fn mine_pending(&mut self, timestamp: u64) -> Result<usize, &'static str> {
         let transactions = self.mempool.take_all();
 
         if transactions.is_empty() {
