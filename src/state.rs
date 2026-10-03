@@ -63,7 +63,10 @@ impl State {
             .expect("validated sender must have a balance");
         *sender_balance -= transaction.amount;
 
-        let recipient_balance = self.balances.entry(transaction.recipient.clone()).or_default();
+        let recipient_balance = self
+            .balances
+            .entry(transaction.recipient.clone())
+            .or_default();
         *recipient_balance = recipient_balance
             .checked_add(transaction.amount)
             .ok_or("recipient balance overflow")?;
