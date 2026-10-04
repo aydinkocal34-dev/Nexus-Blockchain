@@ -11,7 +11,7 @@ pub mod wallet;
 pub use block::Block;
 pub use blockchain::Blockchain;
 pub use mempool::Mempool;
-pub use network::{NetworkMessage, PeerInfo};
+pub use network::{NetworkEvent, NetworkMessage, PeerInfo};
 pub use node::Node;
 pub use state::State;
 pub use transaction::Transaction;
