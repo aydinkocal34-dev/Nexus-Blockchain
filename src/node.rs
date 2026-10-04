@@ -21,11 +21,13 @@ impl Node {
     }
 
     pub fn mine_pending(&mut self, timestamp: u64) -> Result<usize, &'static str> {
-        let transactions = self.mempool.take_all();
+        let mut transactions = self.mempool.take_all();
 
         if transactions.is_empty() {
             return Err("mempool is empty");
         }
+
+        transactions.sort_by(|left, right| left.id.cmp(&right.id));
 
         if let Err(error) = self
             .blockchain
