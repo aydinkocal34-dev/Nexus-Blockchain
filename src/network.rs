@@ -1,4 +1,3 @@
-// inbound event routing is implemented below
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
@@ -7,11 +6,12 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::{Block, Transaction};
 
 const MAX_FRAME_SIZE: usize = 4 * 1024 * 1024;
+const INBOUND_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PeerInfo {
@@ -75,20 +75,35 @@ pub fn respond_to(message: &NetworkMessage) -> Option<NetworkMessage> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkEvent {
+    pub peer_id: String,
+    pub message: NetworkMessage,
+}
+
 type SharedWriter = Arc<Mutex<OwnedWriteHalf>>;
 
 #[derive(Debug, Clone)]
 pub struct PeerManager {
     peers: Arc<Mutex<Vec<PeerInfo>>>,
     connections: Arc<Mutex<HashMap<String, SharedWriter>>>,
+    inbound_tx: mpsc::Sender<NetworkEvent>,
+    inbound_rx: Arc<Mutex<Option<mpsc::Receiver<NetworkEvent>>>>,
 }
 
 impl PeerManager {
     pub fn new() -> Self {
+        let (inbound_tx, inbound_rx) = mpsc::channel(INBOUND_CHANNEL_CAPACITY);
         Self {
             peers: Arc::new(Mutex::new(Vec::new())),
             connections: Arc::new(Mutex::new(HashMap::new())),
+            inbound_tx,
+            inbound_rx: Arc::new(Mutex::new(Some(inbound_rx))),
         }
+    }
+
+    pub async fn take_event_receiver(&self) -> Option<mpsc::Receiver<NetworkEvent>> {
+        self.inbound_rx.lock().await.take()
     }
 
     pub async fn add_peer(&self, peer: PeerInfo) {
@@ -148,7 +163,12 @@ impl PeerManager {
         Ok(sent)
     }
 
-    async fn serve_reader(&self, mut reader: OwnedReadHalf, writer: SharedWriter) {
+    async fn serve_reader(
+        &self,
+        peer_id: String,
+        mut reader: OwnedReadHalf,
+        writer: SharedWriter,
+    ) {
         loop {
             let message = match read_message(&mut reader).await {
                 Ok(message) => message,
@@ -160,8 +180,23 @@ impl PeerManager {
                 if write_message(&mut *writer, &response).await.is_err() {
                     break;
                 }
+                continue;
+            }
+
+            if self
+                .inbound_tx
+                .send(NetworkEvent {
+                    peer_id: peer_id.clone(),
+                    message,
+                })
+                .await
+                .is_err()
+            {
+                break;
             }
         }
+
+        self.connections.lock().await.remove(&peer_id);
     }
 
     pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<PeerInfo> {
@@ -184,8 +219,9 @@ impl PeerManager {
             .insert(peer.node_id.clone(), shared_writer.clone());
 
         let manager = self.clone();
+        let peer_id = peer.node_id.clone();
         tokio::spawn(async move {
-            manager.serve_reader(reader, shared_writer).await;
+            manager.serve_reader(peer_id, reader, shared_writer).await;
         });
 
         Ok(peer)
@@ -231,7 +267,7 @@ impl PeerManager {
                         .await
                         .insert(peer.node_id.clone(), shared_writer.clone());
 
-                    manager.serve_reader(reader, shared_writer).await;
+                    manager.serve_reader(peer.node_id, reader, shared_writer).await;
                 });
             }
         }))
