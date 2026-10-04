@@ -1,6 +1,7 @@
 use crate::blockchain::Blockchain;
 use crate::mempool::Mempool;
-use crate::network::{NetworkMessage, PeerManager};
+use crate::network::{read_message, write_message, NetworkMessage, PeerInfo, PeerManager};
+use tokio::net::TcpStream;
 use crate::transaction::Transaction;
 
 #[derive(Debug)]
@@ -63,6 +64,61 @@ impl Node {
         let count = self.mine_pending(timestamp)?;
         self.broadcast_latest_block().await?;
         Ok(count)
+    }
+
+    pub async fn sync_from_peer(
+        &mut self,
+        address: &str,
+        local: PeerInfo,
+    ) -> Result<usize, &'static str> {
+        let stream = TcpStream::connect(address)
+            .await
+            .map_err(|_| "failed to connect to sync peer")?;
+        let (mut reader, mut writer) = stream.into_split();
+
+        write_message(&mut writer, &NetworkMessage::Hello(local))
+            .await
+            .map_err(|_| "failed to send hello")?;
+
+        match read_message(&mut reader)
+            .await
+            .map_err(|_| "failed to read hello")?
+        {
+            NetworkMessage::Hello(_) => {}
+            _ => return Err("expected hello"),
+        }
+
+        let next_index = self
+            .blockchain
+            .latest_block()
+            .index
+            .checked_add(1)
+            .ok_or("block index overflow")?;
+
+        write_message(
+            &mut writer,
+            &NetworkMessage::GetBlocks {
+                from_index: next_index,
+            },
+        )
+        .await
+        .map_err(|_| "failed to request blocks")?;
+
+        let response = read_message(&mut reader)
+            .await
+            .map_err(|_| "failed to read blocks")?;
+
+        let NetworkMessage::Blocks(blocks) = response else {
+            return Err("expected blocks response");
+        };
+
+        let mut applied = 0;
+        for block in blocks {
+            self.blockchain.apply_existing_block(block)?;
+            applied += 1;
+        }
+
+        Ok(applied)
     }
 
     pub async fn broadcast_latest_block(&self) -> Result<usize, &'static str> {
