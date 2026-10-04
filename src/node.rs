@@ -13,6 +13,7 @@ pub struct Node {
     pub network: PeerManager,
     pub consensus: ConsensusEngine,
     pub validators: Option<ValidatorSet>,
+    pub node_id: Option<String>,
 }
 
 impl Node {
@@ -23,7 +24,12 @@ impl Node {
             network: PeerManager::new(),
             consensus: ConsensusEngine::new(),
             validators: None,
+            node_id: None,
         }
+    }
+
+    pub fn configure_identity(&mut self, node_id: impl Into<String>) {
+        self.node_id = Some(node_id.into());
     }
 
     pub fn configure_validators(&mut self, validators: ValidatorSet) {\n        self.validators = Some(validators);\n    }\n\n    pub fn submit_transaction(&mut self, transaction: Transaction) -> Result<(), &'static str> {
