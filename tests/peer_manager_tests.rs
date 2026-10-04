@@ -1,50 +1,72 @@
-use nexus_blockchain::network::{NetworkMessage, PeerInfo, PeerManager, read_message, write_message};
-use tokio::net::TcpListener;
+use nexus_blockchain::network::{NetworkMessage, PeerInfo, PeerManager};
 use tokio::time::{sleep, Duration};
 
 #[tokio::test]
-async fn peer_manager_establishes_hello_handshake() {
-    let manager = PeerManager::new();
-    let listener = manager
+async fn peer_manager_establishes_persistent_hello_connection() {
+    let server_manager = PeerManager::new();
+    let listener = server_manager
         .listen(
             "127.0.0.1:0",
-            PeerInfo { node_id: "node-a".into(), address: "a".into() },
+            PeerInfo {
+                node_id: "node-a".into(),
+                address: "127.0.0.1:0".into(),
+            },
         )
         .await
         .unwrap();
 
-    let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = probe.local_addr().unwrap();
-    drop(probe);
-
+    // The listener binds an ephemeral port, so use a dedicated local TCP
+    // listener to discover a free port and then restart the manager there.
     listener.abort();
 
-    let server = TcpListener::bind(address).await.unwrap();
-    let server_task = tokio::spawn(async move {
-        let (mut stream, _) = server.accept().await.unwrap();
-        let message = read_message(&mut stream).await.unwrap();
-        assert!(matches!(message, NetworkMessage::Hello(_)));
-        write_message(
-            &mut stream,
-            &NetworkMessage::Hello(PeerInfo {
+    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = probe.local_addr().unwrap().to_string();
+    drop(probe);
+
+    let listener = server_manager
+        .listen(
+            &address,
+            PeerInfo {
+                node_id: "node-a".into(),
+                address: address.clone(),
+            },
+        )
+        .await
+        .unwrap();
+
+    let client_manager = PeerManager::new();
+    let peer = client_manager
+        .connect(
+            &address,
+            PeerInfo {
                 node_id: "node-b".into(),
-                address: address.to_string(),
-            }),
-        ).await.unwrap();
-    });
+                address: "127.0.0.1:0".into(),
+            },
+        )
+        .await
+        .unwrap();
 
-    let client = tokio::net::TcpStream::connect(address).await.unwrap();
-    let mut client = client;
-    write_message(
-        &mut client,
-        &NetworkMessage::Hello(PeerInfo {
-            node_id: "node-a".into(),
-            address: "a".into(),
-        }),
-    ).await.unwrap();
+    assert_eq!(peer.node_id, "node-a");
 
-    let response = read_message(&mut client).await.unwrap();
-    assert!(matches!(response, NetworkMessage::Hello(_)));
-    server_task.await.unwrap();
-    sleep(Duration::from_millis(1)).await;
+    for _ in 0..20 {
+        if server_manager.connection_count().await == 1 {
+            break;
+        }
+        sleep(Duration::from_millis(5)).await;
+    }
+
+    assert_eq!(client_manager.connection_count().await, 1);
+    assert_eq!(server_manager.connection_count().await, 1);
+    assert_eq!(server_manager.peers().await[0].node_id, "node-b");
+
+    client_manager
+        .send_to_peer("node-a", &NetworkMessage::Ping { nonce: 42 })
+        .await
+        .unwrap();
+
+    // The server's reader loop consumes Ping and answers with Pong. Give the
+    // asynchronous reader/writer tasks a moment to process the frame.
+    sleep(Duration::from_millis(10)).await;
+
+    listener.abort();
 }
