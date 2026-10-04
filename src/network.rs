@@ -29,6 +29,7 @@ pub enum NetworkMessage {
     GetBlocks { from_index: u64 },
     Blocks(Vec<Block>),
     Proposal { height: u64, block_hash: String, proposer: String },
+    ProposeBlock { block: Block, proposer: String },
     Vote { height: u64, block_hash: String, voter: String, decision: bool },
     GetTransactions,
     Transactions(Vec<Transaction>),
