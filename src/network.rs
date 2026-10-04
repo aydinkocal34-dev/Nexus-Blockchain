@@ -125,6 +125,10 @@ impl PeerManager {
         write_message(&mut *writer, message).await
     }
 
+    pub async fn connected_peer_ids(&self) -> Vec<String> {
+        self.connections.lock().await.keys().cloned().collect()
+    }
+
     pub async fn broadcast(&self, message: &NetworkMessage) -> io::Result<usize> {
         let writers: Vec<SharedWriter> = self.connections.lock().await.values().cloned().collect();
         let mut sent = 0;
