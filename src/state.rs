@@ -22,10 +22,11 @@ impl State {
         self.nonces.get(address).copied().unwrap_or(0)
     }
 
-    pub fn credit(&mut self, address: impl Into<String>, amount: u64) {
+    pub fn credit(&mut self, address: impl Into<String>, amount: u64) -> Result<(), &'static str> {
         let address = address.into();
         let balance = self.balances.entry(address).or_default();
-        *balance = balance.saturating_add(amount);
+        *balance = balance.checked_add(amount).ok_or("balance overflow")?;
+        Ok(())
     }
 
     pub fn validate_transaction(&self, transaction: &Transaction) -> Result<(), &'static str> {
@@ -42,7 +43,11 @@ impl State {
             return Err("amount must be greater than zero");
         }
 
-        let expected_nonce = self.nonce_of(&transaction.sender) + 1;
+        let expected_nonce = self
+            .nonce_of(&transaction.sender)
+            .checked_add(1)
+            .ok_or("nonce overflow")?;
+
         if transaction.nonce != expected_nonce {
             return Err("invalid nonce");
         }
