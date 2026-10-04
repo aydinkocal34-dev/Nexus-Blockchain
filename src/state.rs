@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
 use crate::wallet::address_from_public_key;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     balances: HashMap<String, u64>,
     nonces: HashMap<String, u64>,
