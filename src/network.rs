@@ -125,6 +125,20 @@ impl PeerManager {
         write_message(&mut *writer, message).await
     }
 
+    pub async fn broadcast(&self, message: &NetworkMessage) -> io::Result<usize> {
+        let writers: Vec<SharedWriter> = self.connections.lock().await.values().cloned().collect();
+        let mut sent = 0;
+
+        for writer in writers {
+            let mut writer = writer.lock().await;
+            if write_message(&mut *writer, message).await.is_ok() {
+                sent += 1;
+            }
+        }
+
+        Ok(sent)
+    }
+
     async fn serve_reader(&self, mut reader: OwnedReadHalf, writer: SharedWriter) {
         loop {
             let message = match read_message(&mut reader).await {
