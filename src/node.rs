@@ -14,6 +14,7 @@ pub struct Node {
     pub consensus: ConsensusEngine,
     pub validators: Option<ValidatorSet>,
     pub node_id: Option<String>,
+    pending_consensus_block: Option<crate::Block>,
 }
 
 impl Node {
@@ -25,6 +26,7 @@ impl Node {
             consensus: ConsensusEngine::new(),
             validators: None,
             node_id: None,
+            pending_consensus_block: None,
         }
     }
 
