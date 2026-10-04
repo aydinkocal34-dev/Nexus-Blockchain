@@ -22,16 +22,6 @@ impl Blockchain {
             .expect("blockchain must contain genesis block")
     }
 
-    pub fn add_block(&mut self, timestamp: u64, transactions: Vec<Transaction>) {
-        let previous = self.latest_block();
-        self.chain.push(Block::new(
-            previous.index + 1,
-            timestamp,
-            previous.hash.clone(),
-            transactions,
-        ));
-    }
-
     pub fn execute_block(
         &mut self,
         timestamp: u64,
@@ -46,13 +36,14 @@ impl Blockchain {
             next_state.apply_transaction(transaction)?;
         }
 
-        let previous = self.latest_block();
-        let block = Block::new(
-            previous.index + 1,
-            timestamp,
-            previous.hash.clone(),
-            transactions,
-        );
+        let next_index = self
+            .latest_block()
+            .index
+            .checked_add(1)
+            .ok_or("block index overflow")?;
+        let previous_hash = self.latest_block().hash.clone();
+
+        let block = Block::new(next_index, timestamp, previous_hash, transactions);
 
         self.chain.push(block);
         self.state = next_state;
@@ -75,13 +66,19 @@ impl Blockchain {
         for pair in self.chain.windows(2) {
             let previous = &pair[0];
             let current = &pair[1];
-            if current.index != previous.index + 1
+
+            let Some(expected_index) = previous.index.checked_add(1) else {
+                return false;
+            };
+
+            if current.index != expected_index
                 || current.previous_hash != previous.hash
                 || !current.is_hash_valid()
             {
                 return false;
             }
         }
+
         true
     }
 }
