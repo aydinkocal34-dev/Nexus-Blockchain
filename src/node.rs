@@ -1,5 +1,6 @@
 use crate::blockchain::Blockchain;
 use crate::mempool::Mempool;
+use crate::consensus::{ConsensusEngine, ValidatorSet, Vote, VoteDecision};
 use crate::network::{read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -10,6 +11,8 @@ pub struct Node {
     pub blockchain: Blockchain,
     pub mempool: Mempool,
     pub network: PeerManager,
+    pub consensus: ConsensusEngine,
+    pub validators: Option<ValidatorSet>,
 }
 
 impl Node {
@@ -18,10 +21,12 @@ impl Node {
             blockchain: Blockchain::new(genesis_timestamp),
             mempool: Mempool::new(),
             network: PeerManager::new(),
+            consensus: ConsensusEngine::new(),
+            validators: None,
         }
     }
 
-    pub fn submit_transaction(&mut self, transaction: Transaction) -> Result<(), &'static str> {
+    pub fn configure_validators(&mut self, validators: ValidatorSet) {\n        self.validators = Some(validators);\n    }\n\n    pub fn submit_transaction(&mut self, transaction: Transaction) -> Result<(), &'static str> {
         self.mempool
             .submit_with_state(&self.blockchain.state, transaction)
     }
