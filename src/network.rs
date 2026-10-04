@@ -1,11 +1,10 @@
 use std::io;
 use std::sync::Arc;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-
-use serde::{Deserialize, Serialize};
 
 use crate::{Block, Transaction};
 
@@ -30,11 +29,9 @@ pub enum NetworkMessage {
 }
 
 pub async fn write_message<W>(writer: &mut W, message: &NetworkMessage) -> io::Result<()>
-where
-    W: tokio::io::AsyncWrite + Unpin,
-{
+where W: AsyncWrite + Unpin {
     let payload = serde_json::to_vec(message)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     if payload.len() > MAX_FRAME_SIZE {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "message too large"));
     }
@@ -46,9 +43,7 @@ where
 }
 
 pub async fn read_message<R>(reader: &mut R) -> io::Result<NetworkMessage>
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
+where R: AsyncRead + Unpin {
     let length = reader.read_u32().await? as usize;
     if length > MAX_FRAME_SIZE {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "message too large"));
@@ -56,7 +51,7 @@ where
     let mut payload = vec![0u8; length];
     reader.read_exact(&mut payload).await?;
     serde_json::from_slice(&payload)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 #[derive(Debug, Clone)]
@@ -80,9 +75,17 @@ impl PeerManager {
         self.peers.lock().await.clone()
     }
 
-    pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<()> {
+    pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<PeerInfo> {
         let mut stream = TcpStream::connect(address).await?;
-        write_message(&mut stream, &NetworkMessage::Hello(local)).await
+        write_message(&mut stream, &NetworkMessage::Hello(local)).await?;
+
+        let response = read_message(&mut stream).await?;
+        let NetworkMessage::Hello(peer) = response else {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "expected hello"));
+        };
+
+        self.add_peer(peer.clone()).await;
+        Ok(peer)
     }
 
     pub async fn listen(
@@ -95,17 +98,16 @@ impl PeerManager {
 
         Ok(tokio::spawn(async move {
             loop {
-                let Ok((mut stream, _)) = listener.accept().await else {
-                    continue;
-                };
-
+                let Ok((mut stream, _)) = listener.accept().await else { continue; };
                 let manager = manager.clone();
                 let local = local.clone();
+
                 tokio::spawn(async move {
-                    if let Ok(NetworkMessage::Hello(peer)) = read_message(&mut stream).await {
-                        manager.add_peer(peer).await;
-                        let _ = write_message(&mut stream, &NetworkMessage::Hello(local)).await;
-                    }
+                    let Ok(NetworkMessage::Hello(peer)) = read_message(&mut stream).await else {
+                        return;
+                    };
+                    manager.add_peer(peer).await;
+                    let _ = write_message(&mut stream, &NetworkMessage::Hello(local)).await;
                 });
             }
         }))
