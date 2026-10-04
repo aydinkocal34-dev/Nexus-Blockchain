@@ -63,7 +63,9 @@ impl ValidatorSet {
     }
 
     pub fn quorum_weight(&self) -> u64 {
-        self.total_weight() / 3 * 2 + 1
+        let total = self.total_weight();
+        if total == 0 { return 0; }
+        total.saturating_mul(2).saturating_div(3).saturating_add(1).min(total)
     }
 
     pub fn weight_of(&self, node_id: &str) -> u64 {
@@ -174,4 +176,66 @@ pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
     } else {
         ConsensusDecision::Reject
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommitStatus {
+    Pending,
+    Committed,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConsensusEngine {
+    proposal: Option<Proposal>,
+    collector: Option<VoteCollector>,
+}
+
+impl ConsensusEngine {
+    pub fn new() -> Self {
+        Self { proposal: None, collector: None }
+    }
+
+    pub fn propose(
+        &mut self,
+        validators: &ValidatorSet,
+        proposal: Proposal,
+    ) -> Result<(), &'static str> {
+        if validators.leader_for_height(proposal.height).node_id != proposal.proposer {
+            return Err("proposal proposer is not the deterministic leader");
+        }
+        if proposal.block_hash.is_empty() {
+            return Err("proposal block hash must not be empty");
+        }
+        if self.proposal.as_ref().map(|p| p.height == proposal.height).unwrap_or(false) {
+            return Err("proposal already exists for height");
+        }
+        self.collector = Some(VoteCollector::new(&proposal));
+        self.proposal = Some(proposal);
+        Ok(())
+    }
+
+    pub fn record_vote(
+        &mut self,
+        validators: &ValidatorSet,
+        vote: Vote,
+    ) -> Result<CommitStatus, &'static str> {
+        let collector = self.collector.as_mut().ok_or("no active proposal")?;
+        let committed = collector.add_vote(validators, vote)?;
+        Ok(if committed { CommitStatus::Committed } else { CommitStatus::Pending })
+    }
+
+    pub fn proposal(&self) -> Option<&Proposal> { self.proposal.as_ref() }
+
+    pub fn is_committed(&self, validators: &ValidatorSet) -> bool {
+        self.collector.as_ref().map(|c| c.is_committed(validators)).unwrap_or(false)
+    }
+
+    pub fn clear(&mut self) {
+        self.proposal = None;
+        self.collector = None;
+    }
+}
+
+impl Default for ConsensusEngine {
+    fn default() -> Self { Self::new() }
 }
