@@ -25,6 +25,8 @@ pub enum NetworkMessage {
     Pong { nonce: u64 },
     GetLatestBlock,
     LatestBlock(Block),
+    GetBlocks { from_index: u64 },
+    Blocks(Vec<Block>),
     GetTransactions,
     Transactions(Vec<Transaction>),
     SubmitTransaction(Transaction),
