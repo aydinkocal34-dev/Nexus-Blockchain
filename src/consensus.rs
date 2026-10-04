@@ -1,9 +1,16 @@
 use crate::Block;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsensusDecision {
     Accept,
+    Reject,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoteDecision {
+    Commit,
     Reject,
 }
 
@@ -15,13 +22,14 @@ pub struct Validator {
 
 impl Validator {
     pub fn new(node_id: impl Into<String>, weight: u64) -> Result<Self, &'static str> {
+        let node_id = node_id.into();
+        if node_id.is_empty() {
+            return Err("validator node id must not be empty");
+        }
         if weight == 0 {
             return Err("validator weight must be greater than zero");
         }
-        Ok(Self {
-            node_id: node_id.into(),
-            weight,
-        })
+        Ok(Self { node_id, weight })
     }
 }
 
@@ -55,7 +63,15 @@ impl ValidatorSet {
     }
 
     pub fn quorum_weight(&self) -> u64 {
-        (self.total_weight() / 3).saturating_mul(2).saturating_add(1)
+        self.total_weight() / 3 * 2 + 1
+    }
+
+    pub fn weight_of(&self, node_id: &str) -> u64 {
+        self.validators
+            .iter()
+            .find(|validator| validator.node_id == node_id)
+            .map(|validator| validator.weight)
+            .unwrap_or(0)
     }
 
     pub fn leader_for_height(&self, height: u64) -> &Validator {
@@ -67,9 +83,91 @@ impl ValidatorSet {
     }
 }
 
-/// Deterministic first-stage fork rule: a candidate at a higher height wins.
-/// Equal-height candidates are rejected here and require explicit consensus
-/// evidence in a later protocol stage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Proposal {
+    pub height: u64,
+    pub block_hash: String,
+    pub proposer: String,
+}
+
+impl Proposal {
+    pub fn new(height: u64, block_hash: impl Into<String>, proposer: impl Into<String>) -> Self {
+        Self {
+            height,
+            block_hash: block_hash.into(),
+            proposer: proposer.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vote {
+    pub height: u64,
+    pub block_hash: String,
+    pub voter: String,
+    pub decision: VoteDecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoteCollector {
+    height: u64,
+    block_hash: String,
+    votes: Vec<Vote>,
+}
+
+impl VoteCollector {
+    pub fn new(proposal: &Proposal) -> Self {
+        Self {
+            height: proposal.height,
+            block_hash: proposal.block_hash.clone(),
+            votes: Vec::new(),
+        }
+    }
+
+    pub fn add_vote(
+        &mut self,
+        validators: &ValidatorSet,
+        vote: Vote,
+    ) -> Result<bool, &'static str> {
+        if vote.height != self.height || vote.block_hash != self.block_hash {
+            return Err("vote does not match proposal");
+        }
+        if validators.weight_of(&vote.voter) == 0 {
+            return Err("voter is not a validator");
+        }
+        if self.votes.iter().any(|existing| existing.voter == vote.voter) {
+            return Err("duplicate validator vote");
+        }
+
+        self.votes.push(vote);
+        Ok(self.committed_weight(validators) >= validators.quorum_weight())
+    }
+
+    pub fn committed_weight(&self, validators: &ValidatorSet) -> u64 {
+        self.votes
+            .iter()
+            .filter(|vote| vote.decision == VoteDecision::Commit)
+            .map(|vote| validators.weight_of(&vote.voter))
+            .fold(0u64, u64::saturating_add)
+    }
+
+    pub fn rejected_weight(&self, validators: &ValidatorSet) -> u64 {
+        self.votes
+            .iter()
+            .filter(|vote| vote.decision == VoteDecision::Reject)
+            .map(|vote| validators.weight_of(&vote.voter))
+            .fold(0u64, u64::saturating_add)
+    }
+
+    pub fn is_committed(&self, validators: &ValidatorSet) -> bool {
+        self.committed_weight(validators) >= validators.quorum_weight()
+    }
+
+    pub fn voters(&self) -> BTreeSet<&str> {
+        self.votes.iter().map(|vote| vote.voter.as_str()).collect()
+    }
+}
+
 pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
     if candidate.index > local.index {
         ConsensusDecision::Accept
