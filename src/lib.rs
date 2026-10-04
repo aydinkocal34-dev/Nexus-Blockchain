@@ -17,5 +17,6 @@ pub use mempool::Mempool;
 pub use network::{NetworkEvent, NetworkMessage, PeerInfo};
 pub use node::Node;
 pub use state::State;
+pub use storage::BlockchainStorage;
 pub use transaction::Transaction;
 pub use wallet::{address_from_public_key, Wallet};
