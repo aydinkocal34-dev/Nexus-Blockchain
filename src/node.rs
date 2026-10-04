@@ -87,6 +87,11 @@ impl Node {
                     self.blockchain.latest_block().clone(),
                 )))
             }
+            NetworkMessage::GetBlocks { from_index } => {
+                Ok(Some(NetworkMessage::Blocks(
+                    self.blockchain.blocks_from(from_index),
+                )))
+            }
             NetworkMessage::GetTransactions => {
                 Ok(Some(NetworkMessage::Transactions(
                     self.mempool.transactions(),
@@ -110,8 +115,7 @@ impl Node {
                     return Err("invalid block hash");
                 }
 
-                self.blockchain
-                    .execute_block(block.timestamp, block.transactions)?;
+                self.blockchain.apply_existing_block(block)?;
                 Ok(None)
             }
             NetworkMessage::Transactions(transactions) => {
