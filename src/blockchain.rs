@@ -1,8 +1,9 @@
 use crate::block::Block;
 use crate::state::State;
 use crate::transaction::Transaction;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blockchain {
     pub chain: Vec<Block>,
     pub state: State,
@@ -95,6 +96,33 @@ impl Blockchain {
 
     pub fn nonce_of(&self, address: &str) -> u64 {
         self.state.nonce_of(address)
+    }
+
+    pub fn validate_full(&self) -> Result<(), &'static str> {
+        if self.chain.is_empty() || !self.chain[0].is_hash_valid() {
+            return Err("invalid genesis");
+        }
+        let mut reconstructed = State::new();
+        for position in 1..self.chain.len() {
+            let previous = &self.chain[position - 1];
+            let block = &self.chain[position];
+            if block.index != previous.index.checked_add(1).ok_or("block index overflow")? {
+                return Err("invalid block height");
+            }
+            if block.previous_hash != previous.hash || !block.is_hash_valid() {
+                return Err("invalid block linkage");
+            }
+            if block.transactions.is_empty() {
+                return Err("empty block");
+            }
+            for transaction in &block.transactions {
+                reconstructed.apply_transaction(transaction)?;
+            }
+        }
+        if reconstructed != self.state {
+            return Err("state reconstruction mismatch");
+        }
+        Ok(())
     }
 
     pub fn is_valid(&self) -> bool {
