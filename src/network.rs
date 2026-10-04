@@ -121,13 +121,6 @@ impl PeerManager {
         self.connections.lock().await.len()
     }
 
-    async fn register_connection(&self, peer: &PeerInfo, writer: OwnedWriteHalf) {
-        self.connections
-            .lock()
-            .await
-            .insert(peer.node_id.clone(), Arc::new(Mutex::new(writer)));
-    }
-
     pub async fn send_to_peer(
         &self,
         node_id: &str,
@@ -233,6 +226,14 @@ impl PeerManager {
         local: PeerInfo,
     ) -> io::Result<tokio::task::JoinHandle<()>> {
         let listener = TcpListener::bind(address).await?;
+        self.listen_on(listener, local).await
+    }
+
+    pub async fn listen_on(
+        &self,
+        listener: TcpListener,
+        local: PeerInfo,
+    ) -> io::Result<tokio::task::JoinHandle<()>> {
         let manager = self.clone();
 
         Ok(tokio::spawn(async move {
