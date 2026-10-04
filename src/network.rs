@@ -54,6 +54,14 @@ where R: AsyncRead + Unpin {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
+pub fn respond_to(message: &NetworkMessage) -> Option<NetworkMessage> {
+    match message {
+        NetworkMessage::Ping { nonce } => Some(NetworkMessage::Pong { nonce: *nonce }),
+        NetworkMessage::Pong { .. } => None,
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PeerManager {
     peers: Arc<Mutex<Vec<PeerInfo>>>,
