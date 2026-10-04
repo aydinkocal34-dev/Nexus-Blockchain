@@ -8,6 +8,7 @@ fn leader_proposal_reaches_commit_quorum() {
         Validator::new("a", 1).unwrap(),
         Validator::new("b", 1).unwrap(),
         Validator::new("c", 1).unwrap(),
+        Validator::new("d", 1).unwrap(),
     ])
     .unwrap();
     let leader = validators.leader_for_height(7).node_id.clone();
@@ -42,6 +43,13 @@ fn leader_proposal_reaches_commit_quorum() {
         )
         .unwrap(),
         CommitStatus::Committed
+    );
+    assert_eq!(
+        engine.record_vote(
+            &validators,
+            Vote { height: 7, block_hash: "block-hash".into(), voter: "c".into(), decision: VoteDecision::Commit },
+        ).unwrap(),
+        CommitStatus::Pending
     );
     assert!(engine.is_committed(&validators));
 }
