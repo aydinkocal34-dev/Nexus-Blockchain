@@ -1,7 +1,8 @@
 use crate::blockchain::Blockchain;
 use crate::mempool::Mempool;
-use crate::network::{read_message, write_message, NetworkMessage, PeerInfo, PeerManager};
+use crate::network::{read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 use crate::transaction::Transaction;
 
 #[derive(Debug)]
@@ -180,9 +181,38 @@ impl Node {
                 }
                 Ok(None)
             }
+            NetworkMessage::Proposal { .. } | NetworkMessage::Vote { .. } => {
+                // Transport is wired; consensus validation/commit is a separate protocol layer.
+                Ok(None)
+            }
             NetworkMessage::Ping { .. }
             | NetworkMessage::Pong { .. }
             | NetworkMessage::Hello(_) => Ok(None),
         }
     }
+    pub async fn take_network_events(&self) -> Option<mpsc::Receiver<NetworkEvent>> {
+        self.network.take_event_receiver().await
+    }
+
+    pub async fn process_network_events(&mut self) -> Result<(), &'static str> {
+        let mut receiver = self
+            .network
+            .take_event_receiver()
+            .await
+            .ok_or("network event receiver already taken")?;
+
+        while let Some(event) = receiver.recv().await {
+            let response = match self.handle_network_message(event.message) {
+                Ok(response) => response,
+                Err(_) => continue,
+            };
+
+            if let Some(response) = response {
+                let _ = self.network.send_to_peer(&event.peer_id, &response).await;
+            }
+        }
+
+        Ok(())
+    }
+
 }
