@@ -57,4 +57,16 @@ impl GenesisConfig {
         if self.max_supply != MAX_SUPPLY { return Err("invalid maximum supply"); }
         Ok(())
     }
+    pub fn validate_for_mainnet(&self) -> Result<(), &'static str> {
+        self.validate()?;
+        if self.network != Network::Mainnet { return Err("configuration is not mainnet"); }
+        if self.genesis_timestamp == 0 { return Err("mainnet genesis timestamp is missing"); }
+        if self.genesis_hash.contains("REPLACE_WITH_") { return Err("mainnet genesis hash is still a placeholder"); }
+        if self.genesis_hash.len() != 64 { return Err("mainnet genesis hash must be 64 hex characters"); }
+        if !self.genesis_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("mainnet genesis hash must be hexadecimal");
+        }
+        Ok(())
+    }
+
 }
