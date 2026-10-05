@@ -1,4 +1,5 @@
 pub mod block;
+pub mod config;
 pub mod economics;
 pub mod storage;
 pub mod consensus;
