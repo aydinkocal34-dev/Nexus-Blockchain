@@ -3,6 +3,8 @@ use crate::state::State;
 use crate::transaction::Transaction;
 use serde::{Deserialize, Serialize};
 
+pub const MAX_BLOCKS_PER_SYNC: usize = 256;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blockchain {
     pub chain: Vec<Block>,
@@ -27,6 +29,7 @@ impl Blockchain {
         self.chain
             .iter()
             .filter(|block| block.index >= from_index)
+            .take(MAX_BLOCKS_PER_SYNC)
             .cloned()
             .collect()
     }
