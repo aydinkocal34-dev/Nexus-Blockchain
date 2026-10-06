@@ -24,7 +24,7 @@ fn node_commits_proposed_block_after_quorum() {
     node.blockchain.state.credit(sender.address(), 100).unwrap();
 
     let unsigned = Transaction::new("tx-1", sender.address(), recipient.address(), 10, 1)
-        .with_signature(sender.public_key_bytes(), sender.sign(b"unused"));
+        .with_signature(sender.public_key_bytes(), [0; 64]);
     let signature = sender.sign(&unsigned.signing_bytes());
     let tx = unsigned.with_signature(sender.public_key_bytes(), signature);
 
