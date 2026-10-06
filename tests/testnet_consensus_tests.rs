@@ -28,7 +28,8 @@ fn four_node_consensus_reaches_commit() {
         recipient.address(),
         10,
         1,
-    );
+    )
+    .with_signature(sender.public_key_bytes(), [0; 64]);
     let signature = sender.sign(&unsigned.signing_bytes());
     unsigned = unsigned.with_signature(sender.public_key_bytes(), signature);
 
