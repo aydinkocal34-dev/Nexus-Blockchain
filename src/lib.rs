@@ -3,6 +3,7 @@ pub mod config;
 pub mod economics;
 pub mod storage;
 pub mod consensus;
+pub mod consensus_auth;
 pub mod blockchain;
 pub mod mempool;
 pub mod network;
