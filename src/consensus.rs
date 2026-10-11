@@ -1,5 +1,6 @@
 use crate::Block;
 use sha2::{Digest, Sha256};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8,7 +9,7 @@ pub enum ConsensusDecision {
     Reject,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VoteDecision {
     Commit,
     Reject,
@@ -85,7 +86,7 @@ impl ValidatorSet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {
     pub height: u64,
     pub block_hash: String,
@@ -102,7 +103,7 @@ impl Proposal {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Vote {
     pub height: u64,
     pub block_hash: String,
