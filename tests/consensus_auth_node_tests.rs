@@ -4,7 +4,7 @@ use nexus_blockchain::{
     consensus::{Proposal, Validator, ValidatorSet, Vote, VoteDecision},
     consensus_auth::{SignedProposal, SignedVote},
     network::NetworkMessage,
-    Block, Node, Wallet,
+    Block, Node, Transaction, Wallet,
 };
 
 #[test]
@@ -42,7 +42,28 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
     }
     assert!(node.validate_authenticated_consensus_ready().is_ok());
 
-    let block = Block::new(1, 2, node.blockchain.latest_block().hash.clone(), vec![]);
+    let sender = Wallet::new();
+    let recipient = Wallet::new();
+    node.blockchain
+        .state
+        .credit(sender.address(), 100)
+        .unwrap();
+    let unsigned = Transaction::new(
+        "consensus-auth-test-tx",
+        sender.address(),
+        recipient.address(),
+        10,
+        1,
+    )
+    .with_signature(sender.public_key_bytes(), [0; 64]);
+    let signature = sender.sign(&unsigned.signing_bytes());
+    let transaction = unsigned.with_signature(sender.public_key_bytes(), signature);
+    let block = Block::new(
+        1,
+        2,
+        node.blockchain.latest_block().hash.clone(),
+        vec![transaction],
+    );
     let proposal = SignedProposal::sign(
         Proposal::new(1, block.hash.clone(), leader.clone()),
         &wallets[&leader],
