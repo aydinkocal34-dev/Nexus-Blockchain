@@ -7,9 +7,10 @@ fn signed_transaction(
     amount: u64,
     nonce: u64,
 ) -> Transaction {
-    let tx = Transaction::new(id, wallet.address(), recipient, amount, nonce);
-    let signature = wallet.sign(&tx.signing_bytes());
-    tx.with_signature(wallet.public_key_bytes(), signature)
+    let unsigned = Transaction::new(id, wallet.address(), recipient, amount, nonce)
+        .with_signature(wallet.public_key_bytes(), [0; 64]);
+    let signature = wallet.sign(&unsigned.signing_bytes());
+    unsigned.with_signature(wallet.public_key_bytes(), signature)
 }
 
 #[test]
