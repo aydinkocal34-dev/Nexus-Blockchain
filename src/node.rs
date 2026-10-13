@@ -1,10 +1,13 @@
 use crate::blockchain::Blockchain;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
+use crate::consensus_auth::{SignedProposal, SignedVote};
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
 };
 use crate::transaction::Transaction;
+use crate::Wallet;
+use std::collections::HashMap;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -16,6 +19,9 @@ pub struct Node {
     pub consensus: ConsensusEngine,
     pub validators: Option<ValidatorSet>,
     pub node_id: Option<String>,
+    consensus_public_keys: HashMap<String, [u8; 32]>,
+    consensus_signer: Option<Wallet>,
+    authenticated_consensus: bool,
     pending_consensus_block: Option<crate::Block>,
 }
 
@@ -28,12 +34,46 @@ impl Node {
             consensus: ConsensusEngine::new(),
             validators: None,
             node_id: None,
+            consensus_public_keys: HashMap::new(),
+            consensus_signer: None,
+            authenticated_consensus: false,
             pending_consensus_block: None,
         }
     }
 
     pub fn configure_identity(&mut self, node_id: impl Into<String>) {
-        self.node_id = Some(node_id.into());
+        let node_id = node_id.into();
+        if let Some(signer) = self.consensus_signer.as_ref() {
+            self.consensus_public_keys.insert(node_id.clone(), signer.public_key_bytes());
+        }
+        self.node_id = Some(node_id);
+    }
+
+    /// Configure the local Ed25519 key used to sign consensus votes.
+    /// This enables authenticated-consensus mode, which rejects legacy unsigned
+    /// proposal and vote messages.
+    pub fn configure_consensus_signer(&mut self, signer: Wallet) {
+        if let Some(node_id) = self.node_id.as_ref() {
+            self.consensus_public_keys.insert(node_id.clone(), signer.public_key_bytes());
+        }
+        self.consensus_signer = Some(signer);
+        self.authenticated_consensus = true;
+    }
+
+    /// Bind a validator identity to its expected Ed25519 public key.
+    pub fn configure_validator_public_key(
+        &mut self,
+        node_id: impl Into<String>,
+        public_key: [u8; 32],
+    ) -> Result<(), &'static str> {
+        let node_id = node_id.into();
+        let validators = self.validators.as_ref().ok_or("validator set is not configured")?;
+        if validators.weight_of(&node_id) == 0 {
+            return Err("identity is not a configured validator");
+        }
+        self.consensus_public_keys.insert(node_id, public_key);
+        self.authenticated_consensus = true;
+        Ok(())
     }
 
     pub fn configure_validators(&mut self, validators: ValidatorSet) {
@@ -182,7 +222,39 @@ impl Node {
                 }
                 Ok(None)
             }
+            NetworkMessage::SignedProposeBlock { block, proposal: signed } => {
+                if !self.authenticated_consensus {
+                    return Err("authenticated consensus is not enabled");
+                }
+                let proposer = signed.proposal.proposer.clone();
+                let expected_key = self.consensus_public_keys.get(&proposer)
+                    .ok_or("proposal signer key is not configured")?;
+                if !signed.verify(&proposer, expected_key) {
+                    return Err("invalid proposal signature");
+                }
+                if signed.proposal.height != block.index || signed.proposal.block_hash != block.hash {
+                    return Err("signed proposal does not match block");
+                }
+                let validators = self.validators.as_ref().ok_or("validator set is not configured")?;
+                let expected_index = self.blockchain.latest_block().index.checked_add(1).ok_or("block index overflow")?;
+                if block.index != expected_index { return Err("unexpected proposal height"); }
+                if block.previous_hash != self.blockchain.latest_block().hash { return Err("invalid proposal previous hash"); }
+                if !block.is_hash_valid() { return Err("invalid proposed block hash"); }
+                self.consensus.propose(validators, signed.proposal)?;
+                self.pending_consensus_block = Some(block.clone());
+                let voter = self.node_id.as_ref().ok_or("node identity is not configured")?.clone();
+                if validators.weight_of(&voter) == 0 { return Err("node identity is not a validator"); }
+                let signer = self.consensus_signer.as_ref().ok_or("consensus signer is not configured")?;
+                let vote = Vote {
+                    height: expected_index,
+                    block_hash: block.hash,
+                    voter,
+                    decision: VoteDecision::Commit,
+                };
+                Ok(Some(NetworkMessage::SignedVote(SignedVote::sign(vote, signer))))
+            }
             NetworkMessage::ProposeBlock { block, proposer } => {
+                if self.authenticated_consensus { return Err("unsigned consensus messages are disabled"); }
                 let validators = self
                     .validators
                     .as_ref()
@@ -261,6 +333,22 @@ impl Node {
             | NetworkMessage::Pong { .. }
             | NetworkMessage::Hello(_) => Ok(None),
         }
+    }
+
+    fn record_consensus_vote(&mut self, vote: Vote) -> Result<Option<NetworkMessage>, &'static str> {
+        let validators = self.validators.as_ref().ok_or("validator set is not configured")?;
+        let height = vote.height;
+        let block_hash = vote.block_hash.clone();
+        let status = self.consensus.record_vote(validators, vote)?;
+        if status == CommitStatus::Committed {
+            let block = self.pending_consensus_block.take().ok_or("committed proposal block is missing")?;
+            if block.index != height || block.hash != block_hash {
+                return Err("committed vote does not match pending block");
+            }
+            self.blockchain.apply_existing_block(block)?;
+            self.consensus.clear();
+        }
+        Ok(None)
     }
 
     pub async fn take_network_events(&self) -> Option<mpsc::Receiver<NetworkEvent>> {
