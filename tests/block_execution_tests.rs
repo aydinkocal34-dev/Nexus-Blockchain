@@ -54,7 +54,7 @@ fn multiple_transactions_execute_in_order() {
     let second_recipient = Wallet::new();
     let mut blockchain = Blockchain::new(1);
 
-    blockchain.state.credit(sender.address(), 100);
+    blockchain.state.credit(sender.address(), 100).unwrap();
 
     let first = signed_transaction(&sender, &first_recipient.address(), 30, 1);
     let second = signed_transaction(&sender, &second_recipient.address(), 20, 2);
