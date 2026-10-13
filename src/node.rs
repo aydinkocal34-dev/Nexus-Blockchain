@@ -1,6 +1,6 @@
 use crate::blockchain::Blockchain;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
-use crate::consensus_auth::{SignedProposal, SignedVote};
+use crate::consensus_auth::SignedVote;
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
@@ -227,6 +227,7 @@ impl Node {
                 }
                 Ok(None)
             }
+            NetworkMessage::Blocks(_) => Err("unsolicited block batch"),
             NetworkMessage::SignedProposeBlock {
                 block,
                 proposal: signed,
