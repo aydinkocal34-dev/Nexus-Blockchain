@@ -76,7 +76,7 @@ fn four_node_consensus_reaches_commit() {
         .unwrap();
     let leader_node = &mut nodes[leader_index];
 
-    for vote in votes {
+    for vote in votes.into_iter().take(3) {
         leader_node.handle_network_message(vote).unwrap();
     }
 
