@@ -16,7 +16,7 @@ pub use block::Block;
 pub use blockchain::Blockchain;
 pub use consensus::{CommitStatus, ConsensusEngine};
 pub use mempool::Mempool;
-pub use network::{NetworkEvent, NetworkMessage, PeerInfo};
+pub use network::{NetworkEvent, NetworkMessage, PeerInfo, PeerManager};
 pub use node::Node;
 pub use state::State;
 pub use storage::BlockchainStorage;
