@@ -200,7 +200,7 @@ impl Node {
                 self.blockchain.blocks_from(from_index),
             ))),
             NetworkMessage::GetTransactions => Ok(Some(NetworkMessage::Transactions(
-                self.mempool.transactions(),
+                self.mempool.transactions().cloned().collect(),
             ))),
             NetworkMessage::LatestBlock(block) => {
                 let expected_index = self
@@ -331,12 +331,29 @@ impl Node {
                 }))
             }
             NetworkMessage::Proposal { .. } => Ok(None),
+            NetworkMessage::SignedVote(signed) => {
+                if !self.authenticated_consensus {
+                    return Err("authenticated consensus is not enabled");
+                }
+                let voter = signed.vote.voter.clone();
+                let expected_key = self
+                    .consensus_public_keys
+                    .get(&voter)
+                    .ok_or("vote signer key is not configured")?;
+                if !signed.verify(&voter, expected_key) {
+                    return Err("invalid vote signature");
+                }
+                self.record_consensus_vote(signed.vote)
+            }
             NetworkMessage::Vote {
                 height,
                 block_hash,
                 voter,
                 decision,
             } => {
+                if self.authenticated_consensus {
+                    return Err("unsigned consensus messages are disabled");
+                }
                 let validators = self
                     .validators
                     .as_ref()
