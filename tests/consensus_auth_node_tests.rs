@@ -40,6 +40,7 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
         node.configure_validator_public_key(id, wallets[id].public_key_bytes())
             .unwrap();
     }
+    assert!(node.validate_authenticated_consensus_ready().is_ok());
 
     let block = Block::new(1, 2, node.blockchain.latest_block().hash.clone(), vec![]);
     let proposal = SignedProposal::sign(
@@ -125,4 +126,43 @@ fn signed_consensus_envelopes_survive_network_json_round_trip() {
         panic!("expected signed vote after decoding");
     };
     assert!(decoded_vote.verify("validator", &wallet.public_key_bytes()));
+}
+
+
+#[test]
+fn authenticated_consensus_readiness_fails_closed_for_missing_validator_keys() {
+    let validators = ValidatorSet::new(vec![
+        Validator::new("a", 1).unwrap(),
+        Validator::new("b", 1).unwrap(),
+        Validator::new("c", 1).unwrap(),
+    ])
+    .unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+    let signer = Wallet::new();
+    node.configure_identity("a");
+    node.configure_consensus_signer(signer.clone());
+    node.configure_validator_public_key("a", signer.public_key_bytes())
+        .unwrap();
+    assert_eq!(
+        node.validate_authenticated_consensus_ready(),
+        Err("validator key registry is incomplete")
+    );
+}
+
+#[test]
+fn direct_block_messages_are_rejected_when_consensus_validators_are_configured() {
+    let validators = ValidatorSet::new(vec![
+        Validator::new("a", 1).unwrap(),
+        Validator::new("b", 1).unwrap(),
+        Validator::new("c", 1).unwrap(),
+    ])
+    .unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+    let block = Block::new(1, 2, node.blockchain.latest_block().hash.clone(), vec![]);
+    assert_eq!(
+        node.handle_network_message(NetworkMessage::LatestBlock(block)),
+        Err("direct block acceptance is disabled when consensus validators are configured")
+    );
 }
