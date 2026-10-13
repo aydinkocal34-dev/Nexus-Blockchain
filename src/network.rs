@@ -44,12 +44,17 @@ pub enum NetworkMessage {
         block: Block,
         proposer: String,
     },
+    SignedProposeBlock {
+        block: Block,
+        proposal: SignedProposal,
+    },
     Vote {
         height: u64,
         block_hash: String,
         voter: String,
         decision: bool,
     },
+    SignedVote(SignedVote),
     GetTransactions,
     Transactions(Vec<Transaction>),
     SubmitTransaction(Transaction),
