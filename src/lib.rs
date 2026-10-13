@@ -1,20 +1,20 @@
 pub mod block;
+pub mod blockchain;
 pub mod config;
-pub mod economics;
-pub mod storage;
 pub mod consensus;
 pub mod consensus_auth;
-pub mod blockchain;
+pub mod economics;
 pub mod mempool;
 pub mod network;
 pub mod node;
 pub mod state;
+pub mod storage;
 pub mod transaction;
 pub mod wallet;
 
 pub use block::Block;
-pub use consensus::{CommitStatus, ConsensusEngine};
 pub use blockchain::Blockchain;
+pub use consensus::{CommitStatus, ConsensusEngine};
 pub use mempool::Mempool;
 pub use network::{NetworkEvent, NetworkMessage, PeerInfo};
 pub use node::Node;

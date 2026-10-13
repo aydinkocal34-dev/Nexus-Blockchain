@@ -22,14 +22,9 @@ fn four_node_consensus_reaches_commit() {
 
     let sender = Wallet::new();
     let recipient = Wallet::new();
-    let mut unsigned = Transaction::new(
-        "testnet-tx-1",
-        sender.address(),
-        recipient.address(),
-        10,
-        1,
-    )
-    .with_signature(sender.public_key_bytes(), [0; 64]);
+    let mut unsigned =
+        Transaction::new("testnet-tx-1", sender.address(), recipient.address(), 10, 1)
+            .with_signature(sender.public_key_bytes(), [0; 64]);
     let signature = sender.sign(&unsigned.signing_bytes());
     unsigned = unsigned.with_signature(sender.public_key_bytes(), signature);
 
@@ -51,19 +46,34 @@ fn four_node_consensus_reaches_commit() {
 
     let mut votes = Vec::new();
     for node in &mut nodes {
-        if let Some(NetworkMessage::Vote { height, block_hash, voter, decision }) =
-            node.handle_network_message(NetworkMessage::ProposeBlock {
+        if let Some(NetworkMessage::Vote {
+            height,
+            block_hash,
+            voter,
+            decision,
+        }) = node
+            .handle_network_message(NetworkMessage::ProposeBlock {
                 block: block.clone(),
                 proposer: leader.clone(),
-            }).unwrap()
+            })
+            .unwrap()
         {
-            votes.push(NetworkMessage::Vote { height, block_hash, voter, decision });
+            votes.push(NetworkMessage::Vote {
+                height,
+                block_hash,
+                voter,
+                decision,
+            });
         }
     }
 
     assert_eq!(votes.len(), 4);
 
-    let leader_index = leader.strip_prefix("node-").unwrap().parse::<usize>().unwrap();
+    let leader_index = leader
+        .strip_prefix("node-")
+        .unwrap()
+        .parse::<usize>()
+        .unwrap();
     let leader_node = &mut nodes[leader_index];
 
     for vote in votes {

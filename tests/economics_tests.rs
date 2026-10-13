@@ -13,14 +13,19 @@ fn genesis_cannot_exceed_maximum_supply() {
     assert!(validate_genesis_allocations(&[GenesisAllocation {
         address: "address".into(),
         amount: MAX_SUPPLY,
-    }]).is_ok());
-    assert!(validate_genesis_allocations(&[GenesisAllocation {
-        address: "address".into(),
-        amount: MAX_SUPPLY,
-    }, GenesisAllocation {
-        address: "address2".into(),
-        amount: 1,
-    }]).is_err());
+    }])
+    .is_ok());
+    assert!(validate_genesis_allocations(&[
+        GenesisAllocation {
+            address: "address".into(),
+            amount: MAX_SUPPLY,
+        },
+        GenesisAllocation {
+            address: "address2".into(),
+            amount: 1,
+        }
+    ])
+    .is_err());
 }
 
 #[test]

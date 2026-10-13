@@ -9,10 +9,14 @@ pub struct BlockchainStorage {
 }
 
 impl BlockchainStorage {
-    pub fn new(path: impl Into<PathBuf>) -> Self { Self { path: path.into() } }
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
 
     pub fn save(&self, blockchain: &Blockchain) -> io::Result<()> {
-        blockchain.validate_full().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        blockchain
+            .validate_full()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let bytes = serde_json::to_vec(blockchain)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
@@ -27,9 +31,13 @@ impl BlockchainStorage {
         let bytes = fs::read(&self.path)?;
         let blockchain: Blockchain = serde_json::from_slice(&bytes)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        blockchain.validate_full().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        blockchain
+            .validate_full()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(blockchain)
     }
 
-    pub fn path(&self) -> &Path { &self.path }
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }

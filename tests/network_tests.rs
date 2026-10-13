@@ -20,10 +20,9 @@ fn peer_info_round_trips_through_json() {
         address: "127.0.0.1:30303".into(),
     };
 
-    let encoded = serde_json::to_string(&NetworkMessage::Hello(peer.clone()))
-        .expect("hello must serialize");
-    let decoded: NetworkMessage =
-        serde_json::from_str(&encoded).expect("hello must deserialize");
+    let encoded =
+        serde_json::to_string(&NetworkMessage::Hello(peer.clone())).expect("hello must serialize");
+    let decoded: NetworkMessage = serde_json::from_str(&encoded).expect("hello must deserialize");
 
     assert_eq!(decoded, NetworkMessage::Hello(peer));
 }

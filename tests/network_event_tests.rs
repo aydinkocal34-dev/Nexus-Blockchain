@@ -31,7 +31,10 @@ async fn inbound_application_messages_are_routed_to_events() {
         .unwrap();
 
     let mut events = server.take_event_receiver().await.unwrap();
-    client.broadcast(&NetworkMessage::GetLatestBlock).await.unwrap();
+    client
+        .broadcast(&NetworkMessage::GetLatestBlock)
+        .await
+        .unwrap();
 
     let event = tokio::time::timeout(std::time::Duration::from_secs(2), events.recv())
         .await

@@ -1,6 +1,12 @@
 use nexus_blockchain::{Node, Transaction, Wallet};
 
-fn signed_transaction(wallet: &Wallet, id: &str, recipient: &str, amount: u64, nonce: u64) -> Transaction {
+fn signed_transaction(
+    wallet: &Wallet,
+    id: &str,
+    recipient: &str,
+    amount: u64,
+    nonce: u64,
+) -> Transaction {
     let tx = Transaction::new(id, wallet.address(), recipient, amount, nonce);
     let signature = wallet.sign(&tx.signing_bytes());
     tx.with_signature(wallet.public_key_bytes(), signature)
@@ -71,7 +77,9 @@ fn failed_mining_restores_mempool() {
     let mut node = Node::new(1);
 
     let tx = signed_transaction(&sender, "tx-6", &recipient.address(), 20, 1);
-    node.mempool.submit(tx).expect("basic mempool admission should succeed");
+    node.mempool
+        .submit(tx)
+        .expect("basic mempool admission should succeed");
 
     assert!(node.mine_pending(2).is_err());
     assert_eq!(node.mempool.len(), 1);

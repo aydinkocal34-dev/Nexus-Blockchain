@@ -109,7 +109,12 @@ impl Blockchain {
         for position in 1..self.chain.len() {
             let previous = &self.chain[position - 1];
             let block = &self.chain[position];
-            if block.index != previous.index.checked_add(1).ok_or("block index overflow")? {
+            if block.index
+                != previous
+                    .index
+                    .checked_add(1)
+                    .ok_or("block index overflow")?
+            {
                 return Err("invalid block height");
             }
             if block.previous_hash != previous.hash || !block.is_hash_valid() {

@@ -22,15 +22,33 @@ pub struct PeerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NetworkMessage {
     Hello(PeerInfo),
-    Ping { nonce: u64 },
-    Pong { nonce: u64 },
+    Ping {
+        nonce: u64,
+    },
+    Pong {
+        nonce: u64,
+    },
     GetLatestBlock,
     LatestBlock(Block),
-    GetBlocks { from_index: u64 },
+    GetBlocks {
+        from_index: u64,
+    },
     Blocks(Vec<Block>),
-    Proposal { height: u64, block_hash: String, proposer: String },
-    ProposeBlock { block: Block, proposer: String },
-    Vote { height: u64, block_hash: String, voter: String, decision: bool },
+    Proposal {
+        height: u64,
+        block_hash: String,
+        proposer: String,
+    },
+    ProposeBlock {
+        block: Block,
+        proposer: String,
+    },
+    Vote {
+        height: u64,
+        block_hash: String,
+        voter: String,
+        decision: bool,
+    },
     GetTransactions,
     Transactions(Vec<Transaction>),
     SubmitTransaction(Transaction),
@@ -40,10 +58,13 @@ pub async fn write_message<W>(writer: &mut W, message: &NetworkMessage) -> io::R
 where
     W: AsyncWrite + Unpin,
 {
-    let payload = serde_json::to_vec(message)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let payload =
+        serde_json::to_vec(message).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     if payload.len() > MAX_FRAME_SIZE {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "message too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "message too large",
+        ));
     }
 
     let length = u32::try_from(payload.len())
@@ -59,13 +80,15 @@ where
 {
     let length = reader.read_u32().await? as usize;
     if length > MAX_FRAME_SIZE {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "message too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "message too large",
+        ));
     }
 
     let mut payload = vec![0u8; length];
     reader.read_exact(&mut payload).await?;
-    serde_json::from_slice(&payload)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    serde_json::from_slice(&payload).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 pub fn respond_to(message: &NetworkMessage) -> Option<NetworkMessage> {
@@ -109,7 +132,10 @@ impl PeerManager {
 
     pub async fn add_peer(&self, peer: PeerInfo) {
         let mut peers = self.peers.lock().await;
-        if !peers.iter().any(|existing| existing.node_id == peer.node_id) {
+        if !peers
+            .iter()
+            .any(|existing| existing.node_id == peer.node_id)
+        {
             peers.push(peer);
         }
     }
@@ -122,11 +148,7 @@ impl PeerManager {
         self.connections.lock().await.len()
     }
 
-    pub async fn send_to_peer(
-        &self,
-        node_id: &str,
-        message: &NetworkMessage,
-    ) -> io::Result<()> {
+    pub async fn send_to_peer(&self, node_id: &str, message: &NetworkMessage) -> io::Result<()> {
         let writer = self
             .connections
             .lock()
@@ -157,12 +179,7 @@ impl PeerManager {
         Ok(sent)
     }
 
-    async fn serve_reader(
-        &self,
-        peer_id: String,
-        mut reader: OwnedReadHalf,
-        writer: SharedWriter,
-    ) {
+    async fn serve_reader(&self, peer_id: String, mut reader: OwnedReadHalf, writer: SharedWriter) {
         loop {
             let message = match read_message(&mut reader).await {
                 Ok(message) => message,
@@ -257,7 +274,10 @@ impl PeerManager {
                         return;
                     }
 
-                    if write_message(&mut writer, &NetworkMessage::Hello(local)).await.is_err() {
+                    if write_message(&mut writer, &NetworkMessage::Hello(local))
+                        .await
+                        .is_err()
+                    {
                         return;
                     }
 
@@ -269,7 +289,9 @@ impl PeerManager {
                         .await
                         .insert(peer.node_id.clone(), shared_writer.clone());
 
-                    manager.serve_reader(peer.node_id, reader, shared_writer).await;
+                    manager
+                        .serve_reader(peer.node_id, reader, shared_writer)
+                        .await;
                 });
             }
         }))

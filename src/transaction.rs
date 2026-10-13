@@ -3,10 +3,7 @@ use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
-fn serialize_signature<S>(
-    signature: &Option<[u8; 64]>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+fn serialize_signature<S>(signature: &Option<[u8; 64]>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

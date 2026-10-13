@@ -9,12 +9,17 @@ pub struct Mempool {
 }
 
 impl Mempool {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn submit(&mut self, transaction: Transaction) -> Result<(), &'static str> {
         self.validate_basic(&transaction)?;
-        if self.transactions.contains_key(&transaction.id) { return Err("duplicate transaction"); }
-        self.transactions.insert(transaction.id.clone(), transaction);
+        if self.transactions.contains_key(&transaction.id) {
+            return Err("duplicate transaction");
+        }
+        self.transactions
+            .insert(transaction.id.clone(), transaction);
         Ok(())
     }
 
@@ -24,7 +29,9 @@ impl Mempool {
         transaction: Transaction,
     ) -> Result<(), &'static str> {
         self.validate_basic(&transaction)?;
-        if self.transactions.contains_key(&transaction.id) { return Err("duplicate transaction"); }
+        if self.transactions.contains_key(&transaction.id) {
+            return Err("duplicate transaction");
+        }
 
         let mut simulated = state.clone();
         let mut pending: Vec<&Transaction> = self.transactions.values().collect();
@@ -35,23 +42,36 @@ impl Mempool {
             simulated.apply_transaction(pending_tx)?;
         }
 
-        self.transactions.insert(transaction.id.clone(), transaction);
+        self.transactions
+            .insert(transaction.id.clone(), transaction);
         Ok(())
     }
 
     fn validate_basic(&self, transaction: &Transaction) -> Result<(), &'static str> {
-        if !transaction.verify_signature() { return Err("invalid transaction signature"); }
+        if !transaction.verify_signature() {
+            return Err("invalid transaction signature");
+        }
         if transaction.id.is_empty() || transaction.amount == 0 {
             return Err("invalid transaction fields");
         }
         Ok(())
     }
 
-    pub fn contains(&self, transaction_id: &str) -> bool { self.transactions.contains_key(transaction_id) }
-    pub fn len(&self) -> usize { self.transactions.len() }
-    pub fn is_empty(&self) -> bool { self.transactions.is_empty() }
-    pub fn transactions(&self) -> impl Iterator<Item = &Transaction> { self.transactions.values() }
+    pub fn contains(&self, transaction_id: &str) -> bool {
+        self.transactions.contains_key(transaction_id)
+    }
+    pub fn len(&self) -> usize {
+        self.transactions.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.transactions.is_empty()
+    }
+    pub fn transactions(&self) -> impl Iterator<Item = &Transaction> {
+        self.transactions.values()
+    }
     pub fn take_all(&mut self) -> Vec<Transaction> {
-        std::mem::take(&mut self.transactions).into_values().collect()
+        std::mem::take(&mut self.transactions)
+            .into_values()
+            .collect()
     }
 }

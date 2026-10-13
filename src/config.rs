@@ -37,10 +37,18 @@ pub struct GenesisConfig {
 }
 
 impl GenesisConfig {
-    pub fn new(network: Network, genesis_timestamp: u64, genesis_hash: impl Into<String>) -> Result<Self, &'static str> {
+    pub fn new(
+        network: Network,
+        genesis_timestamp: u64,
+        genesis_hash: impl Into<String>,
+    ) -> Result<Self, &'static str> {
         let genesis_hash = genesis_hash.into();
-        if genesis_hash.is_empty() { return Err("genesis hash must not be empty"); }
-        if genesis_timestamp == 0 { return Err("genesis timestamp must be greater than zero"); }
+        if genesis_hash.is_empty() {
+            return Err("genesis hash must not be empty");
+        }
+        if genesis_timestamp == 0 {
+            return Err("genesis timestamp must be greater than zero");
+        }
         Ok(Self {
             network,
             protocol_version: PROTOCOL_VERSION,
@@ -51,22 +59,37 @@ impl GenesisConfig {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.protocol_version != PROTOCOL_VERSION { return Err("unsupported protocol version"); }
-        if self.genesis_timestamp == 0 { return Err("invalid genesis timestamp"); }
-        if self.genesis_hash.is_empty() { return Err("missing genesis hash"); }
-        if self.max_supply != MAX_SUPPLY { return Err("invalid maximum supply"); }
+        if self.protocol_version != PROTOCOL_VERSION {
+            return Err("unsupported protocol version");
+        }
+        if self.genesis_timestamp == 0 {
+            return Err("invalid genesis timestamp");
+        }
+        if self.genesis_hash.is_empty() {
+            return Err("missing genesis hash");
+        }
+        if self.max_supply != MAX_SUPPLY {
+            return Err("invalid maximum supply");
+        }
         Ok(())
     }
     pub fn validate_for_mainnet(&self) -> Result<(), &'static str> {
         self.validate()?;
-        if self.network != Network::Mainnet { return Err("configuration is not mainnet"); }
-        if self.genesis_timestamp == 0 { return Err("mainnet genesis timestamp is missing"); }
-        if self.genesis_hash.contains("REPLACE_WITH_") { return Err("mainnet genesis hash is still a placeholder"); }
-        if self.genesis_hash.len() != 64 { return Err("mainnet genesis hash must be 64 hex characters"); }
+        if self.network != Network::Mainnet {
+            return Err("configuration is not mainnet");
+        }
+        if self.genesis_timestamp == 0 {
+            return Err("mainnet genesis timestamp is missing");
+        }
+        if self.genesis_hash.contains("REPLACE_WITH_") {
+            return Err("mainnet genesis hash is still a placeholder");
+        }
+        if self.genesis_hash.len() != 64 {
+            return Err("mainnet genesis hash must be 64 hex characters");
+        }
         if !self.genesis_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err("mainnet genesis hash must be hexadecimal");
         }
         Ok(())
     }
-
 }

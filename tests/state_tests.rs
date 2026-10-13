@@ -88,7 +88,10 @@ fn recipient_overflow_does_not_partially_mutate_state() {
     assert_eq!(state.credit(sender.address(), 10), Ok(()));
     assert_eq!(state.credit(recipient.address(), u64::MAX), Ok(()));
     let tx = signed_transaction(&sender, &recipient.address(), 10, 1);
-    assert_eq!(state.apply_transaction(&tx), Err("recipient balance overflow"));
+    assert_eq!(
+        state.apply_transaction(&tx),
+        Err("recipient balance overflow")
+    );
     assert_eq!(state.balance_of(&sender.address()), 10);
     assert_eq!(state.balance_of(&recipient.address()), u64::MAX);
     assert_eq!(state.nonce_of(&sender.address()), 0);

@@ -23,7 +23,10 @@ async fn four_node_testnet_topology_connects() {
     for index in 1..4 {
         let (client, _) = &nodes[index];
         let (_, server_info) = &nodes[0];
-        client.connect(&server_info.address, nodes[index].1.clone()).await.unwrap();
+        client
+            .connect(&server_info.address, nodes[index].1.clone())
+            .await
+            .unwrap();
     }
 
     sleep(Duration::from_millis(50)).await;
@@ -33,7 +36,11 @@ async fn four_node_testnet_topology_connects() {
     assert_eq!(nodes[2].0.connection_count().await, 1);
     assert_eq!(nodes[3].0.connection_count().await, 1);
 
-    let sent = nodes[1].0.broadcast(&NetworkMessage::Ping { nonce: 42 }).await.unwrap();
+    let sent = nodes[1]
+        .0
+        .broadcast(&NetworkMessage::Ping { nonce: 42 })
+        .await
+        .unwrap();
     assert_eq!(sent, 1);
 
     for handle in listeners {

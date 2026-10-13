@@ -59,7 +59,10 @@ fn duplicate_and_unknown_votes_are_rejected() {
     };
 
     collector.add_vote(&set, vote.clone()).unwrap();
-    assert_eq!(collector.add_vote(&set, vote), Err("duplicate validator vote"));
+    assert_eq!(
+        collector.add_vote(&set, vote),
+        Err("duplicate validator vote")
+    );
 
     assert_eq!(
         collector.add_vote(

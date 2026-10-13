@@ -1,6 +1,6 @@
 use crate::Block;
-use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,15 +58,21 @@ impl ValidatorSet {
     }
 
     pub fn total_weight(&self) -> u64 {
-        self.validators
-            .iter()
-            .fold(0u64, |total, validator| total.saturating_add(validator.weight))
+        self.validators.iter().fold(0u64, |total, validator| {
+            total.saturating_add(validator.weight)
+        })
     }
 
     pub fn quorum_weight(&self) -> u64 {
         let total = self.total_weight();
-        if total == 0 { return 0; }
-        total.saturating_mul(2).saturating_div(3).saturating_add(1).min(total)
+        if total == 0 {
+            return 0;
+        }
+        total
+            .saturating_mul(2)
+            .saturating_div(3)
+            .saturating_add(1)
+            .min(total)
     }
 
     pub fn weight_of(&self, node_id: &str) -> u64 {
@@ -138,7 +144,11 @@ impl VoteCollector {
         if validators.weight_of(&vote.voter) == 0 {
             return Err("voter is not a validator");
         }
-        if self.votes.iter().any(|existing| existing.voter == vote.voter) {
+        if self
+            .votes
+            .iter()
+            .any(|existing| existing.voter == vote.voter)
+        {
             return Err("duplicate validator vote");
         }
 
@@ -193,7 +203,10 @@ pub struct ConsensusEngine {
 
 impl ConsensusEngine {
     pub fn new() -> Self {
-        Self { proposal: None, collector: None }
+        Self {
+            proposal: None,
+            collector: None,
+        }
     }
 
     pub fn propose(
@@ -207,7 +220,12 @@ impl ConsensusEngine {
         if proposal.block_hash.is_empty() {
             return Err("proposal block hash must not be empty");
         }
-        if self.proposal.as_ref().map(|p| p.height == proposal.height).unwrap_or(false) {
+        if self
+            .proposal
+            .as_ref()
+            .map(|p| p.height == proposal.height)
+            .unwrap_or(false)
+        {
             return Err("proposal already exists for height");
         }
         self.collector = Some(VoteCollector::new(&proposal));
@@ -222,13 +240,22 @@ impl ConsensusEngine {
     ) -> Result<CommitStatus, &'static str> {
         let collector = self.collector.as_mut().ok_or("no active proposal")?;
         let committed = collector.add_vote(validators, vote)?;
-        Ok(if committed { CommitStatus::Committed } else { CommitStatus::Pending })
+        Ok(if committed {
+            CommitStatus::Committed
+        } else {
+            CommitStatus::Pending
+        })
     }
 
-    pub fn proposal(&self) -> Option<&Proposal> { self.proposal.as_ref() }
+    pub fn proposal(&self) -> Option<&Proposal> {
+        self.proposal.as_ref()
+    }
 
     pub fn is_committed(&self, validators: &ValidatorSet) -> bool {
-        self.collector.as_ref().map(|c| c.is_committed(validators)).unwrap_or(false)
+        self.collector
+            .as_ref()
+            .map(|c| c.is_committed(validators))
+            .unwrap_or(false)
     }
 
     pub fn clear(&mut self) {
@@ -238,5 +265,7 @@ impl ConsensusEngine {
 }
 
 impl Default for ConsensusEngine {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

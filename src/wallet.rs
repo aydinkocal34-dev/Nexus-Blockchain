@@ -26,7 +26,9 @@ struct EncryptedWallet {
 
 impl Wallet {
     pub fn new() -> Self {
-        Self { signing_key: SigningKey::generate(&mut OsRng) }
+        Self {
+            signing_key: SigningKey::generate(&mut OsRng),
+        }
     }
 
     pub fn address(&self) -> String {
@@ -48,7 +50,9 @@ impl Wallet {
     }
 
     pub fn encrypt_keystore(&self, password: &[u8]) -> Result<Vec<u8>, &'static str> {
-        if password.is_empty() { return Err("wallet password must not be empty"); }
+        if password.is_empty() {
+            return Err("wallet password must not be empty");
+        }
         let mut salt = [0u8; SALT_LEN];
         let mut nonce = [0u8; NONCE_LEN];
         OsRng.fill_bytes(&mut salt);
@@ -61,7 +65,10 @@ impl Wallet {
 
         let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
         let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), self.signing_key.to_bytes().as_ref())
+            .encrypt(
+                Nonce::from_slice(&nonce),
+                self.signing_key.to_bytes().as_ref(),
+            )
             .map_err(|_| "failed to encrypt wallet")?;
 
         serde_json::to_vec(&EncryptedWallet {
@@ -69,11 +76,13 @@ impl Wallet {
             salt: salt.to_vec(),
             nonce: nonce.to_vec(),
             ciphertext,
-        }).map_err(|_| "failed to serialize wallet")
+        })
+        .map_err(|_| "failed to serialize wallet")
     }
 
     pub fn from_encrypted_keystore(data: &[u8], password: &[u8]) -> Result<Self, &'static str> {
-        let stored: EncryptedWallet = serde_json::from_slice(data).map_err(|_| "invalid wallet file")?;
+        let stored: EncryptedWallet =
+            serde_json::from_slice(data).map_err(|_| "invalid wallet file")?;
         if stored.version != 1 || stored.salt.len() != SALT_LEN || stored.nonce.len() != NONCE_LEN {
             return Err("unsupported wallet format");
         }
@@ -86,11 +95,15 @@ impl Wallet {
         let plaintext = cipher
             .decrypt(Nonce::from_slice(&stored.nonce), stored.ciphertext.as_ref())
             .map_err(|_| "invalid wallet password or corrupted wallet")?;
-        if plaintext.len() != KEY_LEN { return Err("invalid wallet key"); }
+        if plaintext.len() != KEY_LEN {
+            return Err("invalid wallet key");
+        }
 
         let mut secret = [0u8; KEY_LEN];
         secret.copy_from_slice(&plaintext);
-        Ok(Self { signing_key: SigningKey::from_bytes(&secret) })
+        Ok(Self {
+            signing_key: SigningKey::from_bytes(&secret),
+        })
     }
 
     fn verifying_key(&self) -> VerifyingKey {
@@ -99,7 +112,9 @@ impl Wallet {
 }
 
 impl Default for Wallet {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub fn address_from_public_key(public_key: &[u8; 32]) -> String {

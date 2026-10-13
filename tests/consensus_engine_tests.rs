@@ -18,37 +18,46 @@ fn leader_proposal_reaches_commit_quorum() {
     engine.propose(&validators, proposal).unwrap();
 
     assert_eq!(
-        engine.record_vote(
-            &validators,
-            Vote {
-                height: 7,
-                block_hash: "block-hash".into(),
-                voter: "a".into(),
-                decision: VoteDecision::Commit,
-            },
-        )
-        .unwrap(),
+        engine
+            .record_vote(
+                &validators,
+                Vote {
+                    height: 7,
+                    block_hash: "block-hash".into(),
+                    voter: "a".into(),
+                    decision: VoteDecision::Commit,
+                },
+            )
+            .unwrap(),
         CommitStatus::Pending
     );
 
     assert_eq!(
-        engine.record_vote(
-            &validators,
-            Vote {
-                height: 7,
-                block_hash: "block-hash".into(),
-                voter: "b".into(),
-                decision: VoteDecision::Commit,
-            },
-        )
-        .unwrap(),
+        engine
+            .record_vote(
+                &validators,
+                Vote {
+                    height: 7,
+                    block_hash: "block-hash".into(),
+                    voter: "b".into(),
+                    decision: VoteDecision::Commit,
+                },
+            )
+            .unwrap(),
         CommitStatus::Committed
     );
     assert_eq!(
-        engine.record_vote(
-            &validators,
-            Vote { height: 7, block_hash: "block-hash".into(), voter: "c".into(), decision: VoteDecision::Commit },
-        ).unwrap(),
+        engine
+            .record_vote(
+                &validators,
+                Vote {
+                    height: 7,
+                    block_hash: "block-hash".into(),
+                    voter: "c".into(),
+                    decision: VoteDecision::Commit
+                },
+            )
+            .unwrap(),
         CommitStatus::Pending
     );
     assert!(engine.is_committed(&validators));
