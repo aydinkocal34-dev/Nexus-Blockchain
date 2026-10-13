@@ -1,15 +1,16 @@
 use nexus_blockchain::{State, Transaction, Wallet};
 
 fn signed_transaction(wallet: &Wallet, recipient: &str, amount: u64, nonce: u64) -> Transaction {
-    let tx = Transaction::new(
+    let unsigned = Transaction::new(
         format!("tx-{nonce}"),
         wallet.address(),
         recipient,
         amount,
         nonce,
-    );
-    let signature = wallet.sign(&tx.signing_bytes());
-    tx.with_signature(wallet.public_key_bytes(), signature)
+    )
+    .with_signature(wallet.public_key_bytes(), [0; 64]);
+    let signature = wallet.sign(&unsigned.signing_bytes());
+    unsigned.with_signature(wallet.public_key_bytes(), signature)
 }
 
 #[test]
@@ -64,15 +65,16 @@ fn rejects_wrong_sender_identity() {
 
     state.credit(sender.address(), 100);
 
-    let tx = Transaction::new(
+    let unsigned = Transaction::new(
         "identity-check",
         other.address(),
         recipient.address(),
         10,
         1,
-    );
-    let signature = sender.sign(&tx.signing_bytes());
-    let signed = tx.with_signature(sender.public_key_bytes(), signature);
+    )
+    .with_signature(sender.public_key_bytes(), [0; 64]);
+    let signature = sender.sign(&unsigned.signing_bytes());
+    let signed = unsigned.with_signature(sender.public_key_bytes(), signature);
 
     assert_eq!(
         state.apply_transaction(&signed),
