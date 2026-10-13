@@ -44,10 +44,7 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
 
     let sender = Wallet::new();
     let recipient = Wallet::new();
-    node.blockchain
-        .state
-        .credit(sender.address(), 100)
-        .unwrap();
+    node.blockchain.state.credit(sender.address(), 100).unwrap();
     let unsigned = Transaction::new(
         "consensus-auth-test-tx",
         sender.address(),
@@ -148,7 +145,6 @@ fn signed_consensus_envelopes_survive_network_json_round_trip() {
     };
     assert!(decoded_vote.verify("validator", &wallet.public_key_bytes()));
 }
-
 
 #[test]
 fn authenticated_consensus_readiness_fails_closed_for_missing_validator_keys() {
