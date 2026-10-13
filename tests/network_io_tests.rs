@@ -6,8 +6,9 @@ async fn framed_message_round_trip() {
     let (mut left, mut right) = duplex(4096);
     let message = NetworkMessage::Ping { nonce: 987 };
 
+    let outgoing = message.clone();
     let writer = tokio::spawn(async move {
-        write_message(&mut left, &message).await.unwrap();
+        write_message(&mut left, &outgoing).await.unwrap();
     });
 
     let decoded = read_message(&mut right).await.unwrap();
