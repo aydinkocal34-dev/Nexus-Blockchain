@@ -30,13 +30,25 @@ fn two_thirds_quorum_commits() {
         )
         .unwrap());
 
-    assert!(collector
+    assert!(!collector
         .add_vote(
             &set,
             Vote {
                 height: 7,
                 block_hash: "block-hash".into(),
                 voter: "b".into(),
+                decision: VoteDecision::Commit,
+            },
+        )
+        .unwrap());
+
+    assert!(collector
+        .add_vote(
+            &set,
+            Vote {
+                height: 7,
+                block_hash: "block-hash".into(),
+                voter: "c".into(),
                 decision: VoteDecision::Commit,
             },
         )
