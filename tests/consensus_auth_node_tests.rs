@@ -157,9 +157,10 @@ fn authenticated_consensus_readiness_fails_closed_for_missing_validator_keys() {
     let mut node = Node::new(1);
     node.configure_validators(validators);
     let signer = Wallet::new();
+    let signer_public_key = signer.public_key_bytes();
     node.configure_identity("a");
-    node.configure_consensus_signer(signer.clone());
-    node.configure_validator_public_key("a", signer.public_key_bytes())
+    node.configure_consensus_signer(signer);
+    node.configure_validator_public_key("a", signer_public_key)
         .unwrap();
     assert_eq!(
         node.validate_authenticated_consensus_ready(),
