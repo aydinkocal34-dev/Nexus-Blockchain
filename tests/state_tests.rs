@@ -19,7 +19,7 @@ fn applies_transaction_and_updates_balances() {
     let recipient = Wallet::new();
     let mut state = State::new();
 
-    state.credit(sender.address(), 100);
+    state.credit(sender.address(), 100).unwrap();
 
     let tx = signed_transaction(&sender, &recipient.address(), 40, 1);
     assert!(state.apply_transaction(&tx).is_ok());
@@ -35,7 +35,7 @@ fn rejects_insufficient_balance() {
     let recipient = Wallet::new();
     let mut state = State::new();
 
-    state.credit(sender.address(), 20);
+    state.credit(sender.address(), 20).unwrap();
 
     let tx = signed_transaction(&sender, &recipient.address(), 21, 1);
     assert_eq!(state.apply_transaction(&tx), Err("insufficient balance"));
