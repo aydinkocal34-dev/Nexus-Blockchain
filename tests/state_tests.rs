@@ -47,7 +47,7 @@ fn rejects_replayed_nonce() {
     let recipient = Wallet::new();
     let mut state = State::new();
 
-    state.credit(sender.address(), 100);
+    state.credit(sender.address(), 100).unwrap();
 
     let first = signed_transaction(&sender, &recipient.address(), 10, 1);
     assert!(state.apply_transaction(&first).is_ok());
@@ -63,7 +63,7 @@ fn rejects_wrong_sender_identity() {
     let other = Wallet::new();
     let mut state = State::new();
 
-    state.credit(sender.address(), 100);
+    state.credit(sender.address(), 100).unwrap();
 
     let unsigned = Transaction::new(
         "identity-check",
