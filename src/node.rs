@@ -56,7 +56,8 @@ impl Node {
     pub fn configure_consensus_signer(&mut self, signer: Wallet) {
         if let Some(node_id) = self.node_id.as_ref() {
             self.consensus_public_keys
-                .insert(node_id.clone(), signer.public_key_bytes());
+                .entry(node_id.clone())
+                .or_insert_with(|| signer.public_key_bytes());
         }
         self.consensus_signer = Some(signer);
         self.authenticated_consensus = true;
@@ -83,6 +84,42 @@ impl Node {
 
     pub fn configure_validators(&mut self, validators: ValidatorSet) {
         self.validators = Some(validators);
+    }
+
+    /// Fail closed before a production node starts consensus if any validator
+    /// key is missing or the local signing key does not match its registered ID.
+    pub fn validate_authenticated_consensus_ready(&self) -> Result<(), &'static str> {
+        if !self.authenticated_consensus {
+            return Err("authenticated consensus is not enabled");
+        }
+        let validators = self
+            .validators
+            .as_ref()
+            .ok_or("validator set is not configured")?;
+        let node_id = self
+            .node_id
+            .as_ref()
+            .ok_or("node identity is not configured")?;
+        if validators.weight_of(node_id) == 0 {
+            return Err("node identity is not a validator");
+        }
+        let signer = self
+            .consensus_signer
+            .as_ref()
+            .ok_or("consensus signer is not configured")?;
+        let local_key = self
+            .consensus_public_keys
+            .get(node_id)
+            .ok_or("local validator key is not configured")?;
+        if local_key != &signer.public_key_bytes() {
+            return Err("local signer does not match registered validator key");
+        }
+        for validator in validators.validators() {
+            if !self.consensus_public_keys.contains_key(&validator.node_id) {
+                return Err("validator key registry is incomplete");
+            }
+        }
+        Ok(())
     }
 
     pub fn submit_transaction(&mut self, transaction: Transaction) -> Result<(), &'static str> {
@@ -203,6 +240,9 @@ impl Node {
                 self.mempool.transactions().cloned().collect(),
             ))),
             NetworkMessage::LatestBlock(block) => {
+                if self.validators.is_some() {
+                    return Err("direct block acceptance is disabled when consensus validators are configured");
+                }
                 let expected_index = self
                     .blockchain
                     .latest_block()
@@ -266,6 +306,8 @@ impl Node {
                 if !block.is_hash_valid() {
                     return Err("invalid proposed block hash");
                 }
+                let mut candidate_chain = self.blockchain.clone();
+                candidate_chain.apply_existing_block(block.clone())?;
                 let voter = self
                     .node_id
                     .as_ref()
