@@ -60,7 +60,7 @@ impl Transaction {
             id: id.into(),
             sender: sender.into(),
             recipient: recipient.into(),
-            amount: amount,
+            amount,
             nonce,
             public_key: None,
             signature: None,
