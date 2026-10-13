@@ -44,7 +44,7 @@ fn leader_proposal_reaches_commit_quorum() {
                 },
             )
             .unwrap(),
-        CommitStatus::Committed
+        CommitStatus::Pending
     );
     assert_eq!(
         engine
@@ -58,7 +58,7 @@ fn leader_proposal_reaches_commit_quorum() {
                 },
             )
             .unwrap(),
-        CommitStatus::Pending
+        CommitStatus::Committed
     );
     assert!(engine.is_committed(&validators));
 }
