@@ -1,9 +1,10 @@
 use nexus_blockchain::{Blockchain, Transaction, Wallet};
 
 fn signed_transaction(wallet: &Wallet, recipient: &str) -> Transaction {
-    let tx = Transaction::new("tx-core-1", wallet.address(), recipient, 10, 1);
-    let signature = wallet.sign(&tx.signing_bytes());
-    tx.with_signature(wallet.public_key_bytes(), signature)
+    let unsigned = Transaction::new("tx-core-1", wallet.address(), recipient, 10, 1)
+        .with_signature(wallet.public_key_bytes(), [0; 64]);
+    let signature = wallet.sign(&unsigned.signing_bytes());
+    unsigned.with_signature(wallet.public_key_bytes(), signature)
 }
 
 #[test]
