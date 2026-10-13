@@ -8,6 +8,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 
+use crate::consensus_auth::{SignedProposal, SignedVote};
 use crate::{Block, Transaction};
 
 const MAX_FRAME_SIZE: usize = 4 * 1024 * 1024;
