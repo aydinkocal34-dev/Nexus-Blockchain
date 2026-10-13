@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nexus_blockchain::{
-    consensus::{Proposal, Validator, ValidatorSet},
+    consensus::{Proposal, Validator, ValidatorSet, Vote, VoteDecision},
     consensus_auth::{SignedProposal, SignedVote},
     network::NetworkMessage,
     Block, Node, Wallet,
@@ -58,6 +58,45 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
         panic!("expected signed vote");
     };
     assert!(vote.verify(local_id, &wallets[local_id].public_key_bytes()));
+    node.handle_network_message(NetworkMessage::SignedVote(vote))
+        .unwrap();
+
+    let other_voter = ids
+        .iter()
+        .copied()
+        .find(|id| *id != leader && *id != local_id)
+        .unwrap();
+    let valid_vote = SignedVote::sign(
+        Vote {
+            height: 1,
+            block_hash: block.hash.clone(),
+            voter: other_voter.into(),
+            decision: VoteDecision::Commit,
+        },
+        &wallets[other_voter],
+    );
+    node.handle_network_message(NetworkMessage::SignedVote(valid_vote))
+        .unwrap();
+
+    let tampered_voter = ids
+        .iter()
+        .copied()
+        .find(|id| *id != leader && *id != local_id && *id != other_voter)
+        .unwrap();
+    let mut tampered_vote = SignedVote::sign(
+        Vote {
+            height: 1,
+            block_hash: block.hash.clone(),
+            voter: tampered_voter.into(),
+            decision: VoteDecision::Commit,
+        },
+        &wallets[tampered_voter],
+    );
+    tampered_vote.signature[0] ^= 1;
+    assert_eq!(
+        node.handle_network_message(NetworkMessage::SignedVote(tampered_vote)),
+        Err("invalid vote signature")
+    );
 
     let unsigned_result = node.handle_network_message(NetworkMessage::ProposeBlock {
         block,
