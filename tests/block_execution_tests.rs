@@ -1,15 +1,16 @@
 use nexus_blockchain::{Blockchain, Transaction, Wallet};
 
 fn signed_transaction(wallet: &Wallet, recipient: &str, amount: u64, nonce: u64) -> Transaction {
-    let tx = Transaction::new(
+    let unsigned = Transaction::new(
         format!("tx-{nonce}"),
         wallet.address(),
         recipient,
         amount,
         nonce,
-    );
-    let signature = wallet.sign(&tx.signing_bytes());
-    tx.with_signature(wallet.public_key_bytes(), signature)
+    )
+    .with_signature(wallet.public_key_bytes(), [0; 64]);
+    let signature = wallet.sign(&unsigned.signing_bytes());
+    unsigned.with_signature(wallet.public_key_bytes(), signature)
 }
 
 #[test]
@@ -18,7 +19,7 @@ fn valid_transaction_is_committed_to_block_and_state() {
     let recipient = Wallet::new();
     let mut blockchain = Blockchain::new(1);
 
-    blockchain.state.credit(sender.address(), 100);
+    blockchain.state.credit(sender.address(), 100).unwrap();
 
     let tx = signed_transaction(&sender, &recipient.address(), 40, 1);
     assert!(blockchain.execute_block(2, vec![tx]).is_ok());
@@ -36,7 +37,7 @@ fn invalid_block_does_not_change_chain_or_state() {
     let recipient = Wallet::new();
     let mut blockchain = Blockchain::new(1);
 
-    blockchain.state.credit(sender.address(), 10);
+    blockchain.state.credit(sender.address(), 10).unwrap();
 
     let tx = signed_transaction(&sender, &recipient.address(), 20, 1);
     assert!(blockchain.execute_block(2, vec![tx]).is_err());
