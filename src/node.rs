@@ -266,8 +266,6 @@ impl Node {
                 if !block.is_hash_valid() {
                     return Err("invalid proposed block hash");
                 }
-                self.consensus.propose(validators, signed.proposal)?;
-                self.pending_consensus_block = Some(block.clone());
                 let voter = self
                     .node_id
                     .as_ref()
@@ -280,6 +278,8 @@ impl Node {
                     .consensus_signer
                     .as_ref()
                     .ok_or("consensus signer is not configured")?;
+                self.consensus.propose(validators, signed.proposal)?;
+                self.pending_consensus_block = Some(block.clone());
                 let vote = Vote {
                     height: expected_index,
                     block_hash: block.hash,
