@@ -28,7 +28,9 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
     node.configure_identity(local_id);
     node.configure_consensus_signer(
         Wallet::from_encrypted_keystore(
-            &wallets[local_id].encrypt_keystore(b"temporary-test-password").unwrap(),
+            &wallets[local_id]
+                .encrypt_keystore(b"temporary-test-password")
+                .unwrap(),
             b"temporary-test-password",
         )
         .unwrap(),
@@ -39,12 +41,7 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
             .unwrap();
     }
 
-    let block = Block::new(
-        1,
-        2,
-        node.blockchain.latest_block().hash.clone(),
-        vec![],
-    );
+    let block = Block::new(1, 2, node.blockchain.latest_block().hash.clone(), vec![]);
     let proposal = SignedProposal::sign(
         Proposal::new(1, block.hash.clone(), leader.clone()),
         &wallets[&leader],
