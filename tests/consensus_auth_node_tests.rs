@@ -203,7 +203,6 @@ fn configuring_identity_does_not_overwrite_a_trusted_validator_key() {
     );
 }
 
-
 #[test]
 fn validator_public_key_cannot_be_rebound_to_a_different_key() {
     let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
