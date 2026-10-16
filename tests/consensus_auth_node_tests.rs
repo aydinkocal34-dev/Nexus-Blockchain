@@ -184,3 +184,21 @@ fn direct_block_messages_are_rejected_when_consensus_validators_are_configured()
         Err("direct block acceptance is disabled when consensus validators are configured")
     );
 }
+
+
+#[test]
+fn configuring_identity_does_not_overwrite_a_trusted_validator_key() {
+    let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+
+    let trusted_key = Wallet::new().public_key_bytes();
+    node.configure_validator_public_key("a", trusted_key).unwrap();
+    node.configure_consensus_signer(Wallet::new());
+    node.configure_identity("a");
+
+    assert_eq!(
+        node.validate_authenticated_consensus_ready(),
+        Err("local signer does not match registered validator key")
+    );
+}
