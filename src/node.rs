@@ -78,7 +78,13 @@ impl Node {
         if validators.weight_of(&node_id) == 0 {
             return Err("identity is not a configured validator");
         }
-        self.consensus_public_keys.insert(node_id, public_key);
+        if let Some(existing_key) = self.consensus_public_keys.get(&node_id) {
+            if existing_key != &public_key {
+                return Err("validator public key is already configured");
+            }
+        } else {
+            self.consensus_public_keys.insert(node_id, public_key);
+        }
         self.authenticated_consensus = true;
         Ok(())
     }
