@@ -192,7 +192,8 @@ fn configuring_identity_does_not_overwrite_a_trusted_validator_key() {
     node.configure_validators(validators);
 
     let trusted_key = Wallet::new().public_key_bytes();
-    node.configure_validator_public_key("a", trusted_key).unwrap();
+    node.configure_validator_public_key("a", trusted_key)
+        .unwrap();
     node.configure_consensus_signer(Wallet::new());
     node.configure_identity("a");
 
