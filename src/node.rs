@@ -139,6 +139,9 @@ impl Node {
     }
 
     pub fn mine_pending(&mut self, timestamp: u64) -> Result<usize, &'static str> {
+        if self.validators.is_some() {
+            return Err("direct mining is disabled when consensus validators are configured");
+        }
         let mut transactions = self.mempool.take_all();
         if transactions.is_empty() {
             return Err("mempool is empty");
@@ -170,6 +173,9 @@ impl Node {
         address: &str,
         local: PeerInfo,
     ) -> Result<usize, &'static str> {
+        if self.validators.is_some() {
+            return Err("direct block sync is disabled when consensus validators are configured");
+        }
         let stream = TcpStream::connect(address)
             .await
             .map_err(|_| "failed to connect to sync peer")?;
