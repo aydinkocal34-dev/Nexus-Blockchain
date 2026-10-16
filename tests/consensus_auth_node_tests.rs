@@ -212,7 +212,8 @@ fn validator_public_key_cannot_be_rebound_to_a_different_key() {
 
     let trusted_key = Wallet::new().public_key_bytes();
     let attacker_key = Wallet::new().public_key_bytes();
-    node.configure_validator_public_key("a", trusted_key).unwrap();
+    node.configure_validator_public_key("a", trusted_key)
+        .unwrap();
 
     assert_eq!(
         node.configure_validator_public_key("a", attacker_key),
