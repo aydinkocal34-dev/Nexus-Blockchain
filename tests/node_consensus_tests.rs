@@ -1,6 +1,6 @@
 use nexus_blockchain::{
     consensus::{Validator, ValidatorSet},
-    network::NetworkMessage,
+    network::{NetworkMessage, PeerInfo},
     Block, Node, Transaction, Wallet,
 };
 
@@ -74,4 +74,40 @@ fn node_commits_proposed_block_after_quorum() {
 
     assert_eq!(node.blockchain.latest_block().index, 1);
     assert_eq!(node.blockchain.balance_of(&sender.address()), 90);
+}
+
+
+#[test]
+fn validator_node_cannot_mine_around_consensus() {
+    let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+
+    assert_eq!(
+        node.mine_pending(2),
+        Err("direct mining is disabled when consensus validators are configured")
+    );
+}
+
+#[tokio::test]
+async fn validator_node_cannot_sync_blocks_around_consensus() {
+    let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
+    let mut node = Node::new(1);
+
+    node.configure_validators(validators);
+
+    let result = node
+        .sync_from_peer(
+            "127.0.0.1:1",
+            PeerInfo {
+                node_id: "local".into(),
+                address: "127.0.0.1:0".into(),
+            },
+        )
+        .await;
+
+    assert_eq!(
+        result,
+        Err("direct block sync is disabled when consensus validators are configured")
+    );
 }
