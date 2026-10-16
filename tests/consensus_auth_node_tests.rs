@@ -202,3 +202,24 @@ fn configuring_identity_does_not_overwrite_a_trusted_validator_key() {
         Err("local signer does not match registered validator key")
     );
 }
+
+
+#[test]
+fn validator_public_key_cannot_be_rebound_to_a_different_key() {
+    let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+
+    let trusted_key = Wallet::new().public_key_bytes();
+    let attacker_key = Wallet::new().public_key_bytes();
+    node.configure_validator_public_key("a", trusted_key).unwrap();
+
+    assert_eq!(
+        node.configure_validator_public_key("a", attacker_key),
+        Err("validator public key is already configured")
+    );
+    assert_eq!(
+        node.configure_validator_public_key("a", trusted_key),
+        Ok(())
+    );
+}
