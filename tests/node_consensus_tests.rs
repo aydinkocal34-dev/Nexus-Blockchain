@@ -76,7 +76,6 @@ fn node_commits_proposed_block_after_quorum() {
     assert_eq!(node.blockchain.balance_of(&sender.address()), 90);
 }
 
-
 #[test]
 fn validator_node_cannot_mine_around_consensus() {
     let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
