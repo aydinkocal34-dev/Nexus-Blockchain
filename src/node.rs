@@ -45,7 +45,8 @@ impl Node {
         let node_id = node_id.into();
         if let Some(signer) = self.consensus_signer.as_ref() {
             self.consensus_public_keys
-                .insert(node_id.clone(), signer.public_key_bytes());
+                .entry(node_id.clone())
+                .or_insert_with(|| signer.public_key_bytes());
         }
         self.node_id = Some(node_id);
     }
