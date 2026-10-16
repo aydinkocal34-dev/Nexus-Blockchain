@@ -285,9 +285,7 @@ impl Node {
                 block,
                 proposal: signed,
             } => {
-                if !self.authenticated_consensus {
-                    return Err("authenticated consensus is not enabled");
-                }
+                self.validate_authenticated_consensus_ready()?;
                 let proposer = signed.proposal.proposer.clone();
                 let expected_key = self
                     .consensus_public_keys
@@ -388,9 +386,7 @@ impl Node {
             }
             NetworkMessage::Proposal { .. } => Ok(None),
             NetworkMessage::SignedVote(signed) => {
-                if !self.authenticated_consensus {
-                    return Err("authenticated consensus is not enabled");
-                }
+                self.validate_authenticated_consensus_ready()?;
                 let voter = signed.vote.voter.clone();
                 let expected_key = self
                     .consensus_public_keys
