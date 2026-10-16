@@ -185,7 +185,6 @@ fn direct_block_messages_are_rejected_when_consensus_validators_are_configured()
     );
 }
 
-
 #[test]
 fn configuring_identity_does_not_overwrite_a_trusted_validator_key() {
     let validators = ValidatorSet::new(vec![Validator::new("a", 1).unwrap()]).unwrap();
