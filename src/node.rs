@@ -1,4 +1,5 @@
 use crate::blockchain::Blockchain;
+use crate::config::DEVNET_CHAIN_ID;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
 use crate::mempool::Mempool;
@@ -27,9 +28,13 @@ pub struct Node {
 
 impl Node {
     pub fn new(genesis_timestamp: u64) -> Self {
+        Self::new_for_chain(genesis_timestamp, DEVNET_CHAIN_ID)
+    }
+
+    pub fn new_for_chain(genesis_timestamp: u64, chain_id: u64) -> Self {
         Self {
-            blockchain: Blockchain::new(genesis_timestamp),
-            mempool: Mempool::new(),
+            blockchain: Blockchain::new_for_chain(genesis_timestamp, chain_id),
+            mempool: Mempool::new_for_chain(chain_id),
             network: PeerManager::new(),
             consensus: ConsensusEngine::new(),
             validators: None,

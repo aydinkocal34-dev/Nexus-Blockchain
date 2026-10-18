@@ -107,3 +107,54 @@ fn credit_overflow_does_not_change_balance() {
     assert_eq!(state.credit(wallet.address(), 1), Err("balance overflow"));
     assert_eq!(state.balance_of(&wallet.address()), u64::MAX);
 }
+
+#[test]
+fn rejects_transaction_signed_for_another_chain() {
+    use nexus_blockchain::config::{MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
+
+    let sender = Wallet::new();
+    let recipient = Wallet::new();
+    let mut mainnet_state = State::new_for_chain(MAINNET_CHAIN_ID);
+    mainnet_state.credit(sender.address(), 100).unwrap();
+
+    let unsigned = Transaction::new_for_chain(
+        "cross-chain-replay",
+        sender.address(),
+        recipient.address(),
+        10,
+        1,
+        TESTNET_CHAIN_ID,
+    )
+    .with_signature(sender.public_key_bytes(), [0; 64]);
+    let signature = sender.sign(&unsigned.signing_bytes());
+    let testnet_transaction = unsigned.with_signature(sender.public_key_bytes(), signature);
+
+    assert_eq!(
+        mainnet_state.apply_transaction(&testnet_transaction),
+        Err("transaction chain ID mismatch")
+    );
+    assert_eq!(mainnet_state.balance_of(&sender.address()), 100);
+    assert_eq!(mainnet_state.nonce_of(&sender.address()), 0);
+}
+
+#[test]
+fn chain_id_is_covered_by_transaction_signature() {
+    use nexus_blockchain::config::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID};
+
+    let sender = Wallet::new();
+    let unsigned = Transaction::new_for_chain(
+        "chain-bound-signature",
+        sender.address(),
+        "recipient",
+        1,
+        1,
+        DEVNET_CHAIN_ID,
+    )
+    .with_signature(sender.public_key_bytes(), [0; 64]);
+    let signature = sender.sign(&unsigned.signing_bytes());
+    let mut signed = unsigned.with_signature(sender.public_key_bytes(), signature);
+    assert!(signed.verify_signature());
+
+    signed.chain_id = MAINNET_CHAIN_ID;
+    assert!(!signed.verify_signature());
+}

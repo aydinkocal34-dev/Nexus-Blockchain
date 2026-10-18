@@ -1,7 +1,7 @@
 use crate::economics::MAX_SUPPLY;
 use serde::{Deserialize, Serialize};
 
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 pub const MAINNET_CHAIN_ID: u64 = 1_000_001;
 pub const TESTNET_CHAIN_ID: u64 = 1_000_002;
 pub const DEVNET_CHAIN_ID: u64 = 1_000_003;

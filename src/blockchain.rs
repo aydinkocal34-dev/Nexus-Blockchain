@@ -1,4 +1,5 @@
 use crate::block::Block;
+use crate::config::DEVNET_CHAIN_ID;
 use crate::state::State;
 use crate::transaction::Transaction;
 use serde::{Deserialize, Serialize};
@@ -13,9 +14,13 @@ pub struct Blockchain {
 
 impl Blockchain {
     pub fn new(genesis_timestamp: u64) -> Self {
+        Self::new_for_chain(genesis_timestamp, DEVNET_CHAIN_ID)
+    }
+
+    pub fn new_for_chain(genesis_timestamp: u64, chain_id: u64) -> Self {
         Self {
             chain: vec![Block::new(0, genesis_timestamp, "0", Vec::new())],
-            state: State::new(),
+            state: State::new_for_chain(chain_id),
         }
     }
 
@@ -105,7 +110,7 @@ impl Blockchain {
         if self.chain.is_empty() || !self.chain[0].is_hash_valid() {
             return Err("invalid genesis");
         }
-        let mut reconstructed = State::new();
+        let mut reconstructed = State::new_for_chain(self.state.chain_id());
         for position in 1..self.chain.len() {
             let previous = &self.chain[position - 1];
             let block = &self.chain[position];

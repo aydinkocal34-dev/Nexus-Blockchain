@@ -1,3 +1,4 @@
+use crate::config::DEVNET_CHAIN_ID;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -35,6 +36,8 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Transaction {
+    #[serde(default = "default_chain_id")]
+    pub chain_id: u64,
     pub id: String,
     pub sender: String,
     pub recipient: String,
@@ -48,7 +51,12 @@ pub struct Transaction {
     pub signature: Option<[u8; 64]>,
 }
 
+fn default_chain_id() -> u64 {
+    DEVNET_CHAIN_ID
+}
+
 impl Transaction {
+    /// Create a devnet transaction. Production callers should use new_for_chain.
     pub fn new(
         id: impl Into<String>,
         sender: impl Into<String>,
@@ -56,7 +64,19 @@ impl Transaction {
         amount: u64,
         nonce: u64,
     ) -> Self {
+        Self::new_for_chain(id, sender, recipient, amount, nonce, DEVNET_CHAIN_ID)
+    }
+
+    pub fn new_for_chain(
+        id: impl Into<String>,
+        sender: impl Into<String>,
+        recipient: impl Into<String>,
+        amount: u64,
+        nonce: u64,
+        chain_id: u64,
+    ) -> Self {
         Self {
+            chain_id,
             id: id.into(),
             sender: sender.into(),
             recipient: recipient.into(),
@@ -69,6 +89,7 @@ impl Transaction {
 
     pub fn signing_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(&(
+            self.chain_id,
             &self.id,
             &self.sender,
             &self.recipient,
