@@ -42,3 +42,10 @@ The IDs are protocol constants in src/config.rs and must not be changed after ge
 Before a production node is allowed to start its consensus/network service, configure its validator set, local node ID, local wallet signer, and the trusted public key for every validator. Call `validate_authenticated_consensus_ready()` and abort startup on any error. Do not accept public keys from incoming messages as a source of validator identity. The Node API now rejects direct `LatestBlock` messages when a validator set is configured and validates a proposed block against a cloned chain before voting.
 
 This API check must be wired into the eventual executable/service startup path. The repository does not yet have a complete production daemon or a formal external security audit; these checks alone do not make mainnet production-ready.
+
+
+## Chain-bound transaction signatures (protocol v2)
+
+Transaction signatures now include the network chain ID in their signed payload. State execution and the mempool reject transactions whose chain ID differs from the configured chain. Use `Transaction::new_for_chain`, `State::new_for_chain`, `Blockchain::new_for_chain`, and `Node::new_for_chain` for an explicitly configured network; the legacy constructors intentionally default to devnet.
+
+This changes transaction signing semantics and increments `PROTOCOL_VERSION` to 2. Existing transactions signed under protocol v1 are not valid under v2 and must not be silently replayed. Before any public testnet or mainnet upgrade, define a deliberate migration/genesis policy and test persisted-chain compatibility. This change alone does not provide peer authentication or make mainnet production-ready.
