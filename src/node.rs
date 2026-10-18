@@ -146,9 +146,6 @@ impl Node {
         if !self.authenticated_consensus {
             return Err("authenticated consensus is not enabled");
         }
-        if self.consensus_signing_store.is_none() {
-            return Err("persistent consensus signing store is not configured");
-        }
         let validators = self
             .validators
             .as_ref()
@@ -175,6 +172,9 @@ impl Node {
             if !self.consensus_public_keys.contains_key(&validator.node_id) {
                 return Err("validator key registry is incomplete");
             }
+        }
+        if self.consensus_signing_store.is_none() {
+            return Err("persistent consensus signing store is not configured");
         }
         Ok(())
     }
