@@ -1,3 +1,4 @@
+use crate::config::DEVNET_CHAIN_ID;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
