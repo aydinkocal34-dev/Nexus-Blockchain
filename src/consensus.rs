@@ -226,13 +226,11 @@ impl ConsensusEngine {
         if proposal.block_hash.is_empty() {
             return Err("proposal block hash must not be empty");
         }
-        if self
-            .proposal
-            .as_ref()
-            .map(|p| p.height == proposal.height)
-            .unwrap_or(false)
-        {
-            return Err("proposal already exists for height");
+        if let Some(active_proposal) = self.proposal.as_ref() {
+            if active_proposal.height == proposal.height {
+                return Err("proposal already exists for height");
+            }
+            return Err("active proposal must be cleared before changing height");
         }
         self.collector = Some(VoteCollector::new(&proposal));
         self.proposal = Some(proposal);
