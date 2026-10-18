@@ -2,6 +2,7 @@ use crate::blockchain::Blockchain;
 use crate::config::DEVNET_CHAIN_ID;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
+use crate::consensus_lock::ConsensusSignLock;
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
@@ -9,6 +10,8 @@ use crate::network::{
 use crate::transaction::Transaction;
 use crate::Wallet;
 use std::collections::HashMap;
+use std::io;
+use std::path::PathBuf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -23,6 +26,7 @@ pub struct Node {
     consensus_public_keys: HashMap<String, [u8; 32]>,
     consensus_signer: Option<Wallet>,
     authenticated_consensus: bool,
+    consensus_sign_lock: Option<ConsensusSignLock>,
     pending_consensus_block: Option<crate::Block>,
 }
 
@@ -42,6 +46,7 @@ impl Node {
             consensus_public_keys: HashMap::new(),
             consensus_signer: None,
             authenticated_consensus: false,
+            consensus_sign_lock: None,
             pending_consensus_block: None,
         }
     }
@@ -118,6 +123,16 @@ impl Node {
             self.consensus_public_keys.insert(node_id, public_key);
         }
         self.authenticated_consensus = true;
+        Ok(())
+    }
+
+    /// Configure durable anti-equivocation storage. Authenticated consensus
+    /// refuses to emit a signed vote until this lock is available.
+    pub fn configure_consensus_sign_lock(&mut self, path: impl Into<PathBuf>) -> io::Result<()> {
+        self.consensus_sign_lock = Some(ConsensusSignLock::open(
+            path,
+            self.blockchain.state.chain_id(),
+        )?);
         Ok(())
     }
 
@@ -375,6 +390,10 @@ impl Node {
                     voter,
                     decision: VoteDecision::Commit,
                 };
+                self.consensus_sign_lock
+                    .as_mut()
+                    .ok_or("persistent consensus signing lock is not configured")?
+                    .reserve_vote(&vote)?;
                 Ok(Some(NetworkMessage::SignedVote(
                     SignedVote::sign_for_chain(vote, signer, self.blockchain.state.chain_id()),
                 )))
