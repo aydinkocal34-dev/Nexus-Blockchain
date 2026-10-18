@@ -296,7 +296,7 @@ impl Node {
                     .consensus_public_keys
                     .get(&proposer)
                     .ok_or("proposal signer key is not configured")?;
-                if !signed.verify(&proposer, expected_key) {
+                if !signed.verify_for_chain(&proposer, expected_key, self.blockchain.state.chain_id()) {
                     return Err("invalid proposal signature");
                 }
                 if signed.proposal.height != block.index || signed.proposal.block_hash != block.hash
@@ -344,8 +344,10 @@ impl Node {
                     voter,
                     decision: VoteDecision::Commit,
                 };
-                Ok(Some(NetworkMessage::SignedVote(SignedVote::sign(
-                    vote, signer,
+                Ok(Some(NetworkMessage::SignedVote(SignedVote::sign_for_chain(
+                    vote,
+                    signer,
+                    self.blockchain.state.chain_id(),
                 ))))
             }
             NetworkMessage::ProposeBlock { block, proposer } => {
@@ -397,7 +399,7 @@ impl Node {
                     .consensus_public_keys
                     .get(&voter)
                     .ok_or("vote signer key is not configured")?;
-                if !signed.verify(&voter, expected_key) {
+                if !signed.verify_for_chain(&voter, expected_key, self.blockchain.state.chain_id()) {
                     return Err("invalid vote signature");
                 }
                 self.record_consensus_vote(signed.vote)
