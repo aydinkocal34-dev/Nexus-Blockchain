@@ -35,9 +35,11 @@ impl ConsensusSigningStore {
     /// Durably reserve a vote before producing or publishing its signature.
     /// A validator may only sign one block/decision per chain and height.
     pub fn reserve_vote(&mut self, chain_id: u64, vote: &Vote) -> Result<(), &'static str> {
-        if let Some(existing) = self.records.iter().find(|record| {
-            record.chain_id == chain_id && record.height == vote.height
-        }) {
+        if let Some(existing) = self
+            .records
+            .iter()
+            .find(|record| record.chain_id == chain_id && record.height == vote.height)
+        {
             if existing.block_hash == vote.block_hash && existing.decision == vote.decision {
                 return Ok(());
             }
@@ -51,7 +53,8 @@ impl ConsensusSigningStore {
             block_hash: vote.block_hash.clone(),
             decision: vote.decision,
         });
-        self.persist(&updated).map_err(|_| "failed to persist consensus signing lock")?;
+        self.persist(&updated)
+            .map_err(|_| "failed to persist consensus signing lock")?;
         self.records = updated;
         Ok(())
     }
@@ -89,7 +92,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("nexus-sign-lock-{}-{nonce}.json", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "nexus-sign-lock-{}-{nonce}.json",
+            std::process::id()
+        ))
     }
 
     fn vote(hash: &str) -> Vote {
