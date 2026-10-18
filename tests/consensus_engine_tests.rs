@@ -63,7 +63,6 @@ fn leader_proposal_reaches_commit_quorum() {
     assert!(engine.is_committed(&validators));
 }
 
-
 #[test]
 fn active_proposal_cannot_be_replaced_by_lower_or_higher_height() {
     let validators = ValidatorSet::new(vec![
