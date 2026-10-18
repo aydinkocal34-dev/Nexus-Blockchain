@@ -2,6 +2,7 @@ use crate::blockchain::Blockchain;
 use crate::config::DEVNET_CHAIN_ID;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
+use crate::consensus_signing_store::ConsensusSigningStore;
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
@@ -9,6 +10,8 @@ use crate::network::{
 use crate::transaction::Transaction;
 use crate::Wallet;
 use std::collections::HashMap;
+use std::io;
+use std::path::PathBuf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -22,6 +25,7 @@ pub struct Node {
     pub node_id: Option<String>,
     consensus_public_keys: HashMap<String, [u8; 32]>,
     consensus_signer: Option<Wallet>,
+    consensus_signing_store: Option<ConsensusSigningStore>,
     authenticated_consensus: bool,
     pending_consensus_block: Option<crate::Block>,
 }
@@ -41,6 +45,7 @@ impl Node {
             node_id: None,
             consensus_public_keys: HashMap::new(),
             consensus_signer: None,
+            consensus_signing_store: None,
             authenticated_consensus: false,
             pending_consensus_block: None,
         }
@@ -121,6 +126,16 @@ impl Node {
         Ok(())
     }
 
+    /// Configure durable anti-equivocation storage. Authenticated consensus
+    /// must not sign votes unless this store is available.
+    pub fn configure_consensus_signing_store(
+        &mut self,
+        path: impl Into<PathBuf>,
+    ) -> io::Result<()> {
+        self.consensus_signing_store = Some(ConsensusSigningStore::open(path)?);
+        Ok(())
+    }
+
     pub fn configure_validators(&mut self, validators: ValidatorSet) {
         self.validators = Some(validators);
     }
@@ -130,6 +145,9 @@ impl Node {
     pub fn validate_authenticated_consensus_ready(&self) -> Result<(), &'static str> {
         if !self.authenticated_consensus {
             return Err("authenticated consensus is not enabled");
+        }
+        if self.consensus_signing_store.is_none() {
+            return Err("persistent consensus signing store is not configured");
         }
         let validators = self
             .validators
@@ -375,6 +393,10 @@ impl Node {
                     voter,
                     decision: VoteDecision::Commit,
                 };
+                self.consensus_signing_store
+                    .as_mut()
+                    .ok_or("persistent consensus signing store is not configured")?
+                    .reserve_vote(self.blockchain.state.chain_id(), &vote)?;
                 Ok(Some(NetworkMessage::SignedVote(
                     SignedVote::sign_for_chain(vote, signer, self.blockchain.state.chain_id()),
                 )))
