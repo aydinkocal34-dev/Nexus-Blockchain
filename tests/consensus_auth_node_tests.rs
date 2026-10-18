@@ -224,7 +224,6 @@ fn validator_public_key_cannot_be_rebound_to_a_different_key() {
     );
 }
 
-
 #[test]
 fn validator_public_key_cannot_be_reused_for_another_identity() {
     let validators = ValidatorSet::new(vec![
