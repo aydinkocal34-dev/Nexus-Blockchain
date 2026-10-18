@@ -1,18 +1,43 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::config::DEVNET_CHAIN_ID;
 use crate::transaction::Transaction;
 use crate::wallet::address_from_public_key;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
+    #[serde(default = "default_chain_id")]
+    chain_id: u64,
     balances: HashMap<String, u64>,
     nonces: HashMap<String, u64>,
 }
 
+fn default_chain_id() -> u64 {
+    DEVNET_CHAIN_ID
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl State {
     pub fn new() -> Self {
-        Self::default()
+        Self::new_for_chain(DEVNET_CHAIN_ID)
+    }
+
+    pub fn new_for_chain(chain_id: u64) -> Self {
+        Self {
+            chain_id,
+            balances: HashMap::new(),
+            nonces: HashMap::new(),
+        }
+    }
+
+    pub fn chain_id(&self) -> u64 {
+        self.chain_id
     }
     pub fn balance_of(&self, address: &str) -> u64 {
         self.balances.get(address).copied().unwrap_or(0)
@@ -28,6 +53,9 @@ impl State {
         Ok(())
     }
     pub fn validate_transaction(&self, transaction: &Transaction) -> Result<(), &'static str> {
+        if transaction.chain_id != self.chain_id {
+            return Err("transaction chain ID mismatch");
+        }
         if !transaction.verify_signature() {
             return Err("invalid transaction signature");
         }
