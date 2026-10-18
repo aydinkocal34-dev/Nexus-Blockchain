@@ -223,3 +223,24 @@ fn validator_public_key_cannot_be_rebound_to_a_different_key() {
         Ok(())
     );
 }
+
+
+#[test]
+fn validator_public_key_cannot_be_reused_for_another_identity() {
+    let validators = ValidatorSet::new(vec![
+        Validator::new("a", 1).unwrap(),
+        Validator::new("b", 1).unwrap(),
+    ])
+    .unwrap();
+    let mut node = Node::new(1);
+    node.configure_validators(validators);
+
+    let shared_key = Wallet::new().public_key_bytes();
+    node.configure_validator_public_key("a", shared_key)
+        .unwrap();
+
+    assert_eq!(
+        node.configure_validator_public_key("b", shared_key),
+        Err("validator public key is already bound to another identity")
+    );
+}
