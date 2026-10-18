@@ -50,6 +50,13 @@ impl ValidatorSet {
                 return Err("duplicate validator");
             }
         }
+        // A validator set whose total weight cannot be represented in u64
+        // must be rejected. Saturating the total would silently lower quorum.
+        validators.iter().try_fold(0u64, |total, validator| {
+            total
+                .checked_add(validator.weight)
+                .ok_or("total validator weight overflows u64")
+        })?;
         Ok(Self { validators })
     }
 
@@ -58,9 +65,11 @@ impl ValidatorSet {
     }
 
     pub fn total_weight(&self) -> u64 {
-        self.validators.iter().fold(0u64, |total, validator| {
-            total.saturating_add(validator.weight)
-        })
+        // ValidatorSet::new guarantees this sum fits in u64.
+        self.validators
+            .iter()
+            .map(|validator| validator.weight)
+            .sum()
     }
 
     pub fn quorum_weight(&self) -> u64 {
@@ -68,11 +77,8 @@ impl ValidatorSet {
         if total == 0 {
             return 0;
         }
-        total
-            .saturating_mul(2)
-            .saturating_div(3)
-            .saturating_add(1)
-            .min(total)
+        // Use a wider intermediate so 2 * total cannot overflow u64.
+        (((u128::from(total) * 2) / 3) + 1).min(u128::from(total)) as u64
     }
 
     pub fn weight_of(&self, node_id: &str) -> u64 {
@@ -267,5 +273,43 @@ impl ConsensusEngine {
 impl Default for ConsensusEngine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod quorum_overflow_tests {
+    use super::{Validator, ValidatorSet};
+
+    fn set_with_weights(weights: &[u64]) -> Result<ValidatorSet, &'static str> {
+        ValidatorSet::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(i, weight)| Validator::new(format!("validator-{i}"), *weight).unwrap())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn rejects_validator_weight_sum_overflow() {
+        assert!(set_with_weights(&[u64::MAX, 1]).is_err());
+    }
+
+    #[test]
+    fn quorum_is_correct_above_u64_half() {
+        let total = 12_000_000_000_000_000_000u64;
+        let validators =
+            set_with_weights(&[6_000_000_000_000_000_000, 6_000_000_000_000_000_000]).unwrap();
+        assert_eq!(validators.total_weight(), total);
+        assert_eq!(validators.quorum_weight(), 8_000_000_000_000_000_001);
+    }
+
+    #[test]
+    fn quorum_boundary_values_are_correct() {
+        for total in [u64::MAX / 2, (u64::MAX / 2) + 1, u64::MAX] {
+            let validators = set_with_weights(&[total]).unwrap();
+            let expected = (((u128::from(total) * 2) / 3) + 1).min(u128::from(total)) as u64;
+            assert_eq!(validators.quorum_weight(), expected);
+        }
     }
 }
