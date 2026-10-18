@@ -50,12 +50,12 @@ impl Node {
         let node_id = node_id.into();
         if let Some(signer) = self.consensus_signer.as_ref() {
             let public_key = signer.public_key_bytes();
-            let key_is_bound_elsewhere = self
-                .consensus_public_keys
-                .iter()
-                .any(|(existing_id, existing_key)| {
-                    existing_id != &node_id && existing_key == &public_key
-                });
+            let key_is_bound_elsewhere =
+                self.consensus_public_keys
+                    .iter()
+                    .any(|(existing_id, existing_key)| {
+                        existing_id != &node_id && existing_key == &public_key
+                    });
             if !key_is_bound_elsewhere {
                 self.consensus_public_keys
                     .entry(node_id.clone())
@@ -71,12 +71,12 @@ impl Node {
     pub fn configure_consensus_signer(&mut self, signer: Wallet) {
         if let Some(node_id) = self.node_id.as_ref() {
             let public_key = signer.public_key_bytes();
-            let key_is_bound_elsewhere = self
-                .consensus_public_keys
-                .iter()
-                .any(|(existing_id, existing_key)| {
-                    existing_id != node_id && existing_key == &public_key
-                });
+            let key_is_bound_elsewhere =
+                self.consensus_public_keys
+                    .iter()
+                    .any(|(existing_id, existing_key)| {
+                        existing_id != node_id && existing_key == &public_key
+                    });
             if !key_is_bound_elsewhere {
                 self.consensus_public_keys
                     .entry(node_id.clone())
