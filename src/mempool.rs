@@ -1,16 +1,31 @@
 use std::collections::HashMap;
 
+use crate::config::DEVNET_CHAIN_ID;
 use crate::state::State;
 use crate::transaction::Transaction;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Mempool {
+    chain_id: u64,
     transactions: HashMap<String, Transaction>,
+}
+
+impl Default for Mempool {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Mempool {
     pub fn new() -> Self {
-        Self::default()
+        Self::new_for_chain(DEVNET_CHAIN_ID)
+    }
+
+    pub fn new_for_chain(chain_id: u64) -> Self {
+        Self {
+            chain_id,
+            transactions: HashMap::new(),
+        }
     }
 
     pub fn submit(&mut self, transaction: Transaction) -> Result<(), &'static str> {
@@ -28,6 +43,9 @@ impl Mempool {
         state: &State,
         transaction: Transaction,
     ) -> Result<(), &'static str> {
+        if state.chain_id() != self.chain_id {
+            return Err("mempool chain ID mismatch");
+        }
         self.validate_basic(&transaction)?;
         if self.transactions.contains_key(&transaction.id) {
             return Err("duplicate transaction");
@@ -48,6 +66,9 @@ impl Mempool {
     }
 
     fn validate_basic(&self, transaction: &Transaction) -> Result<(), &'static str> {
+        if transaction.chain_id != self.chain_id {
+            return Err("transaction chain ID mismatch");
+        }
         if !transaction.verify_signature() {
             return Err("invalid transaction signature");
         }
