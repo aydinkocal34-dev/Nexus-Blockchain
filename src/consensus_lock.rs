@@ -11,6 +11,7 @@ static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 struct PersistedVote {
     height: u64,
     block_hash: String,
+    voter: String,
     decision: VoteDecision,
 }
 
@@ -70,7 +71,10 @@ impl ConsensusSignLock {
     /// is idempotent; conflicting votes at a height and height rollback fail.
     pub fn reserve_vote(&mut self, vote: &Vote) -> Result<(), &'static str> {
         if let Some(existing) = self.votes.iter().find(|entry| entry.height == vote.height) {
-            if existing.block_hash == vote.block_hash && existing.decision == vote.decision {
+            if existing.block_hash == vote.block_hash
+                && existing.voter == vote.voter
+                && existing.decision == vote.decision
+            {
                 return Ok(());
             }
             return Err("conflicting vote already reserved at this height");
@@ -83,6 +87,7 @@ impl ConsensusSignLock {
         let entry = PersistedVote {
             height: vote.height,
             block_hash: vote.block_hash.clone(),
+            voter: vote.voter.clone(),
             decision: vote.decision,
         };
         let mut next_votes = self.votes.clone();
