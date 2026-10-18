@@ -49,9 +49,18 @@ impl Node {
     pub fn configure_identity(&mut self, node_id: impl Into<String>) {
         let node_id = node_id.into();
         if let Some(signer) = self.consensus_signer.as_ref() {
-            self.consensus_public_keys
-                .entry(node_id.clone())
-                .or_insert_with(|| signer.public_key_bytes());
+            let public_key = signer.public_key_bytes();
+            let key_is_bound_elsewhere =
+                self.consensus_public_keys
+                    .iter()
+                    .any(|(existing_id, existing_key)| {
+                        existing_id != &node_id && existing_key == &public_key
+                    });
+            if !key_is_bound_elsewhere {
+                self.consensus_public_keys
+                    .entry(node_id.clone())
+                    .or_insert(public_key);
+            }
         }
         self.node_id = Some(node_id);
     }
@@ -61,9 +70,18 @@ impl Node {
     /// proposal and vote messages.
     pub fn configure_consensus_signer(&mut self, signer: Wallet) {
         if let Some(node_id) = self.node_id.as_ref() {
-            self.consensus_public_keys
-                .entry(node_id.clone())
-                .or_insert_with(|| signer.public_key_bytes());
+            let public_key = signer.public_key_bytes();
+            let key_is_bound_elsewhere =
+                self.consensus_public_keys
+                    .iter()
+                    .any(|(existing_id, existing_key)| {
+                        existing_id != node_id && existing_key == &public_key
+                    });
+            if !key_is_bound_elsewhere {
+                self.consensus_public_keys
+                    .entry(node_id.clone())
+                    .or_insert(public_key);
+            }
         }
         self.consensus_signer = Some(signer);
         self.authenticated_consensus = true;
@@ -82,6 +100,15 @@ impl Node {
             .ok_or("validator set is not configured")?;
         if validators.weight_of(&node_id) == 0 {
             return Err("identity is not a configured validator");
+        }
+        if self
+            .consensus_public_keys
+            .iter()
+            .any(|(existing_id, existing_key)| {
+                existing_id != &node_id && existing_key == &public_key
+            })
+        {
+            return Err("validator public key is already bound to another identity");
         }
         if let Some(existing_key) = self.consensus_public_keys.get(&node_id) {
             if existing_key != &public_key {
