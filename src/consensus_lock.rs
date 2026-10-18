@@ -101,7 +101,11 @@ impl ConsensusSignLock {
             votes: votes.to_vec(),
         })
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-        let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let parent = self
+            .path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)?;
 
         let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
