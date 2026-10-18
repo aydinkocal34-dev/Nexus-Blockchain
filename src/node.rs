@@ -128,10 +128,7 @@ impl Node {
 
     /// Configure durable anti-equivocation storage. Authenticated consensus
     /// refuses to emit a signed vote until this lock is available.
-    pub fn configure_consensus_sign_lock(
-        &mut self,
-        path: impl Into<PathBuf>,
-    ) -> io::Result<()> {
+    pub fn configure_consensus_sign_lock(&mut self, path: impl Into<PathBuf>) -> io::Result<()> {
         self.consensus_sign_lock = Some(ConsensusSignLock::open(
             path,
             self.blockchain.state.chain_id(),
