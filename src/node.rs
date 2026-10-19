@@ -385,11 +385,11 @@ impl Node {
                     decision: VoteDecision::Commit,
                 };
                 let chain_id = self.blockchain.state.chain_id();
-                let reserve_result = self
-                    .consensus_signing_store
-                    .as_mut()
-                    .ok_or("persistent consensus signing store is not configured")?
-                    .reserve_vote(chain_id, &vote);
+                let Some(signing_store) = self.consensus_signing_store.as_mut() else {
+                    self.consensus.clear();
+                    return Err("persistent consensus signing store is not configured");
+                };
+                let reserve_result = signing_store.reserve_vote(chain_id, &vote);
                 if let Err(error) = reserve_result {
                     self.consensus.clear();
                     return Err(error);
