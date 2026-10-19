@@ -228,9 +228,15 @@ impl PeerManager {
     pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<PeerInfo> {
         let stream = TcpStream::connect(address).await?;
         let remote_ip = stream.peer_addr()?.ip();
-        let connection_guard = self.connection_limits.try_accept(remote_ip).ok_or_else(|| {
-            io::Error::new(io::ErrorKind::ConnectionRefused, "peer connection limit reached")
-        })?;
+        let connection_guard = self
+            .connection_limits
+            .try_accept(remote_ip)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::ConnectionRefused,
+                    "peer connection limit reached",
+                )
+            })?;
         let (mut reader, mut writer) = stream.into_split();
 
         write_message(&mut writer, &NetworkMessage::Hello(local)).await?;
@@ -283,7 +289,8 @@ impl PeerManager {
                 let Ok(remote_addr) = stream.peer_addr() else {
                     continue;
                 };
-                let Some(connection_guard) = manager.connection_limits.try_accept(remote_addr.ip()) else {
+                let Some(connection_guard) = manager.connection_limits.try_accept(remote_addr.ip())
+                else {
                     drop(stream);
                     continue;
                 };
