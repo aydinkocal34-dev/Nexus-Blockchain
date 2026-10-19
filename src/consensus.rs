@@ -376,7 +376,7 @@ mod consensus_hardening_tests {
 
         for voter in ["a", "b", "c"] {
             let status = engine
-                                .record_vote(
+                .record_vote(
                     &validators,
                     vote(10, "block-x", voter, VoteDecision::Reject),
                 )
@@ -391,7 +391,9 @@ mod consensus_hardening_tests {
     fn conflicting_vote_from_same_validator_is_equivocation() {
         let validators = validators();
         let mut engine = ConsensusEngine::new();
-        engine.propose(&validators, proposal(&validators, 10, "block-x")).unwrap();
+        engine
+            .propose(&validators, proposal(&validators, 10, "block-x"))
+            .unwrap();
         engine
             .record_vote(&validators, vote(10, "block-x", "a", VoteDecision::Commit))
             .unwrap();
