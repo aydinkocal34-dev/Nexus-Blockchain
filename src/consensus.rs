@@ -332,3 +332,71 @@ mod quorum_overflow_tests {
         }
     }
 }
+
+
+#[cfg(test)]
+mod consensus_hardening_tests {
+    use super::{CommitStatus, ConsensusEngine, Proposal, Validator, ValidatorSet, Vote, VoteDecision};
+
+    fn validators() -> ValidatorSet {
+        ValidatorSet::new(
+            ["a", "b", "c", "d"]
+                .into_iter()
+                .map(|id| Validator::new(id, 1).unwrap())
+                .collect(),
+        )
+        .unwrap()
+    }
+
+    fn proposal(validators: &ValidatorSet, height: u64, hash: &str) -> Proposal {
+        Proposal::new(
+            height,
+            hash,
+            validators.leader_for_height(height).node_id.clone(),
+        )
+    }
+
+    fn vote(height: u64, hash: &str, voter: &str, decision: VoteDecision) -> Vote {
+        Vote {
+            height,
+            block_hash: hash.to_string(),
+            voter: voter.to_string(),
+            decision,
+        }
+    }
+
+    #[test]
+    fn reject_quorum_is_reported_as_rejected() {
+        let validators = validators();
+        let mut engine = ConsensusEngine::new();
+        engine.propose(&validators, proposal(&validators, 10, "block-x")).unwrap();
+
+        for voter in ["a", "b", "c"] {
+            let status = engine
+                .record_vote(&validators, vote(10, "block-x", voter, VoteDecision::Reject))
+                .unwrap();
+            if voter == "c" {
+                assert_eq!(status, CommitStatus::Rejected);
+            }
+        }
+    }
+
+    #[test]
+    fn conflicting_vote_from_same_validator_is_equivocation() {
+        let validators = validators();
+        let mut engine = ConsensusEngine::new();
+        engine.propose(&validators, proposal(&validators, 10, "block-x")).unwrap();
+        engine
+            .record_vote(&validators, vote(10, "block-x", "a", VoteDecision::Commit))
+            .unwrap();
+
+        assert_eq!(
+            engine.record_vote(&validators, vote(10, "block-y", "a", VoteDecision::Commit)),
+            Err("equivocation detected")
+        );
+        assert_eq!(
+            engine.record_vote(&validators, vote(10, "block-x", "a", VoteDecision::Reject)),
+            Err("equivocation detected")
+        );
+    }
+}
