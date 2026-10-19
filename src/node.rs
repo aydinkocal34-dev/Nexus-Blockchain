@@ -2,6 +2,7 @@ use crate::blockchain::Blockchain;
 use crate::config::DEVNET_CHAIN_ID;
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
+use crate::consensus_signing_store::ConsensusSigningStore;
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
@@ -9,6 +10,7 @@ use crate::network::{
 use crate::transaction::Transaction;
 use crate::Wallet;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -22,6 +24,7 @@ pub struct Node {
     pub node_id: Option<String>,
     consensus_public_keys: HashMap<String, [u8; 32]>,
     consensus_signer: Option<Wallet>,
+    consensus_signing_store: Option<ConsensusSigningStore>,
     authenticated_consensus: bool,
     pending_consensus_block: Option<crate::Block>,
 }
@@ -41,6 +44,7 @@ impl Node {
             node_id: None,
             consensus_public_keys: HashMap::new(),
             consensus_signer: None,
+            consensus_signing_store: None,
             authenticated_consensus: false,
             pending_consensus_block: None,
         }
@@ -85,6 +89,16 @@ impl Node {
         }
         self.consensus_signer = Some(signer);
         self.authenticated_consensus = true;
+    }
+
+    /// Configure the durable anti-double-sign store. Signed local consensus
+    /// votes fail closed until this store has been opened and locked.
+    pub fn configure_consensus_signing_store(
+        &mut self,
+        path: impl Into<PathBuf>,
+    ) -> std::io::Result<()> {
+        self.consensus_signing_store = Some(ConsensusSigningStore::open(path)?);
+        Ok(())
     }
 
     /// Bind a validator identity to its expected Ed25519 public key.
@@ -363,20 +377,30 @@ impl Node {
                 if validators.weight_of(&voter) == 0 {
                     return Err("node identity is not a validator");
                 }
-                let signer = self
-                    .consensus_signer
-                    .as_ref()
-                    .ok_or("consensus signer is not configured")?;
                 self.consensus.propose(validators, signed.proposal)?;
-                self.pending_consensus_block = Some(block.clone());
                 let vote = Vote {
                     height: expected_index,
                     block_hash: block.hash,
                     voter,
                     decision: VoteDecision::Commit,
                 };
+                let chain_id = self.blockchain.state.chain_id();
+                let reserve_result = self
+                    .consensus_signing_store
+                    .as_mut()
+                    .ok_or("persistent consensus signing store is not configured")?
+                    .reserve_vote(chain_id, &vote);
+                if let Err(error) = reserve_result {
+                    self.consensus.clear();
+                    return Err(error);
+                }
+                let signer = self
+                    .consensus_signer
+                    .as_ref()
+                    .ok_or("consensus signer is not configured")?;
+                self.pending_consensus_block = Some(block);
                 Ok(Some(NetworkMessage::SignedVote(
-                    SignedVote::sign_for_chain(vote, signer, self.blockchain.state.chain_id()),
+                    SignedVote::sign_for_chain(vote, signer, chain_id),
                 )))
             }
             NetworkMessage::ProposeBlock { block, proposer } => {
