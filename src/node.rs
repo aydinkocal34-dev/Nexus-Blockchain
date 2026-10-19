@@ -610,4 +610,28 @@ mod mainnet_consensus_safety_tests {
             .unwrap_err();
         assert_eq!(error, "mainnet requires authenticated consensus");
     }
+
+    #[test]
+    fn mainnet_rejects_direct_block_acceptance() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let block = Block::new(
+            1,
+            2,
+            node.blockchain.latest_block().hash.clone(),
+            Vec::new(),
+        );
+        assert_eq!(
+            node.handle_network_message(NetworkMessage::LatestBlock(block)),
+            Err("mainnet direct block acceptance is disabled")
+        );
+    }
+
+    #[test]
+    fn mainnet_rejects_direct_mining() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        assert_eq!(
+            node.mine_pending(2),
+            Err("mainnet direct mining is disabled")
+        );
+    }
 }
