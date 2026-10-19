@@ -62,11 +62,7 @@ fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         .duration_since(UNIX_EPOCH)
         .map_err(|error| io::Error::new(io::ErrorKind::Other, error))?
         .as_nanos();
-    let temporary_path = parent.join(format!(
-        ".{file_name}.{}.{}.tmp",
-        std::process::id(),
-        nonce
-    ));
+    let temporary_path = parent.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
 
     let mut file = OpenOptions::new()
         .write(true)
@@ -97,7 +93,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("nexus-chain-storage-{}-{nonce}.json", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "nexus-chain-storage-{}-{nonce}.json",
+            std::process::id()
+        ))
     }
 
     #[test]
