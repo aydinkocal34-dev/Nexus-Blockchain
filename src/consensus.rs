@@ -333,10 +333,11 @@ mod quorum_overflow_tests {
     }
 }
 
-
 #[cfg(test)]
 mod consensus_hardening_tests {
-    use super::{CommitStatus, ConsensusEngine, Proposal, Validator, ValidatorSet, Vote, VoteDecision};
+    use super::{
+        CommitStatus, ConsensusEngine, Proposal, Validator, ValidatorSet, Vote, VoteDecision,
+    };
 
     fn validators() -> ValidatorSet {
         ValidatorSet::new(
@@ -369,11 +370,16 @@ mod consensus_hardening_tests {
     fn reject_quorum_is_reported_as_rejected() {
         let validators = validators();
         let mut engine = ConsensusEngine::new();
-        engine.propose(&validators, proposal(&validators, 10, "block-x")).unwrap();
+        engine
+            .propose(&validators, proposal(&validators, 10, "block-x"))
+            .unwrap();
 
         for voter in ["a", "b", "c"] {
             let status = engine
-                .record_vote(&validators, vote(10, "block-x", voter, VoteDecision::Reject))
+                                .record_vote(
+                    &validators,
+                    vote(10, "block-x", voter, VoteDecision::Reject),
+                )
                 .unwrap();
             if voter == "c" {
                 assert_eq!(status, CommitStatus::Rejected);
