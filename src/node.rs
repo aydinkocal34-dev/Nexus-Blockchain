@@ -557,7 +557,6 @@ impl Node {
     }
 }
 
-
 #[cfg(test)]
 mod mainnet_consensus_safety_tests {
     use super::Node;
