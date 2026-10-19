@@ -1,5 +1,5 @@
 use crate::blockchain::Blockchain;
-use crate::config::DEVNET_CHAIN_ID;
+use crate::config::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID};
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
 use crate::consensus_signing_store::ConsensusSigningStore;
@@ -404,6 +404,9 @@ impl Node {
                 )))
             }
             NetworkMessage::ProposeBlock { block, proposer } => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet requires authenticated consensus");
+                }
                 if self.authenticated_consensus {
                     return Err("unsigned consensus messages are disabled");
                 }
@@ -464,6 +467,9 @@ impl Node {
                 voter,
                 decision,
             } => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet requires authenticated consensus");
+                }
                 if self.authenticated_consensus {
                     return Err("unsigned consensus messages are disabled");
                 }
