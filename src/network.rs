@@ -188,7 +188,13 @@ impl PeerManager {
         Ok(sent)
     }
 
-    async fn serve_reader(\n        &self,\n        peer_id: String,\n        mut reader: OwnedReadHalf,\n        writer: SharedWriter,\n        _connection_guard: ConnectionGuard,\n    ) {
+    async fn serve_reader(
+        &self,
+        peer_id: String,
+        mut reader: OwnedReadHalf,
+        writer: SharedWriter,
+        _connection_guard: ConnectionGuard,
+    ) {
         loop {
             let message = match read_message(&mut reader).await {
                 Ok(message) => message,
