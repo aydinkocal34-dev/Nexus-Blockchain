@@ -1,7 +1,7 @@
 use crate::Block;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsensusDecision {
@@ -182,6 +182,10 @@ impl VoteCollector {
         self.committed_weight(validators) >= validators.quorum_weight()
     }
 
+    pub fn is_rejected(&self, validators: &ValidatorSet) -> bool {
+        self.rejected_weight(validators) >= validators.quorum_weight()
+    }
+
     pub fn voters(&self) -> BTreeSet<&str> {
         self.votes.iter().map(|vote| vote.voter.as_str()).collect()
     }
@@ -199,12 +203,16 @@ pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
 pub enum CommitStatus {
     Pending,
     Committed,
+    Rejected,
 }
 
 #[derive(Debug, Clone)]
 pub struct ConsensusEngine {
     proposal: Option<Proposal>,
     collector: Option<VoteCollector>,
+    /// First accepted vote per (height, validator); used to detect equivocation
+    /// even when a vote arrives through a different collector path.
+    seen_votes: BTreeMap<(u64, String), (String, VoteDecision)>,
 }
 
 impl ConsensusEngine {
@@ -212,6 +220,7 @@ impl ConsensusEngine {
         Self {
             proposal: None,
             collector: None,
+            seen_votes: BTreeMap::new(),
         }
     }
 
@@ -242,13 +251,25 @@ impl ConsensusEngine {
         validators: &ValidatorSet,
         vote: Vote,
     ) -> Result<CommitStatus, &'static str> {
+        let key = (vote.height, vote.voter.clone());
+        if let Some((existing_hash, existing_decision)) = self.seen_votes.get(&key) {
+            if existing_hash != &vote.block_hash || existing_decision != &vote.decision {
+                return Err("equivocation detected");
+            }
+            return Err("duplicate validator vote");
+        }
+
         let collector = self.collector.as_mut().ok_or("no active proposal")?;
-        let committed = collector.add_vote(validators, vote)?;
-        Ok(if committed {
-            CommitStatus::Committed
+        collector.add_vote(validators, vote.clone())?;
+        self.seen_votes
+            .insert(key, (vote.block_hash.clone(), vote.decision));
+        if collector.is_committed(validators) {
+            Ok(CommitStatus::Committed)
+        } else if collector.is_rejected(validators) {
+            Ok(CommitStatus::Rejected)
         } else {
-            CommitStatus::Pending
-        })
+            Ok(CommitStatus::Pending)
+        }
     }
 
     pub fn proposal(&self) -> Option<&Proposal> {
