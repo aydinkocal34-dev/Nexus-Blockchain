@@ -40,6 +40,10 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
         node.configure_validator_public_key(id, wallets[id].public_key_bytes())
             .unwrap();
     }
+    node.configure_consensus_signing_store(
+        std::env::temp_dir().join(format!("nexus-auth-node-{}.json", std::process::id())),
+    )
+    .unwrap();
     assert!(node.validate_authenticated_consensus_ready().is_ok());
 
     let sender = Wallet::new();
