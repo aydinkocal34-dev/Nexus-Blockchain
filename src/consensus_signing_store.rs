@@ -99,7 +99,7 @@ impl ConsensusSigningStore {
             }
         };
 
-        let mut store = Self {
+        let store = Self {
             path,
             anchor_path,
             records,
