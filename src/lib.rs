@@ -6,6 +6,7 @@ pub mod consensus_auth;
 pub mod economics;
 pub mod mempool;
 pub mod network;
+pub mod p2p_limits;
 pub mod node;
 pub mod state;
 pub mod storage;
