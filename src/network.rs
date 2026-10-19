@@ -246,7 +246,8 @@ impl PeerManager {
         let peer_id = peer.node_id.clone();
         tokio::spawn(async move {
             manager
-                .serve_reader(peer_id, reader, shared_writer, connection_guard)\n                .await;
+                .serve_reader(peer_id, reader, shared_writer, connection_guard)
+                .await;
         });
 
         Ok(peer)
