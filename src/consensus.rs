@@ -191,6 +191,9 @@ impl VoteCollector {
     }
 }
 
+/// Height-only synchronization heuristic, not a consensus fork-choice rule.
+/// A higher index alone does not prove finality; validator nodes must rely on
+/// authenticated consensus and block validation before adopting a candidate.
 pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
     if candidate.index > local.index {
         ConsensusDecision::Accept
