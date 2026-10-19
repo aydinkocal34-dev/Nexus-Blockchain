@@ -500,6 +500,9 @@ impl Node {
                     }
                     self.blockchain.apply_existing_block(block)?;
                     self.consensus.clear();
+                } else if status == CommitStatus::Rejected {
+                    self.pending_consensus_block = None;
+                    self.consensus.clear();
                 }
                 Ok(None)
             }
@@ -529,6 +532,9 @@ impl Node {
                 return Err("committed vote does not match pending block");
             }
             self.blockchain.apply_existing_block(block)?;
+            self.consensus.clear();
+        } else if status == CommitStatus::Rejected {
+            self.pending_consensus_block = None;
             self.consensus.clear();
         }
         Ok(None)
