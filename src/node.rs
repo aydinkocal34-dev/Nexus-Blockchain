@@ -192,6 +192,9 @@ impl Node {
     }
 
     pub fn mine_pending(&mut self, timestamp: u64) -> Result<usize, &'static str> {
+        if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+            return Err("mainnet direct mining is disabled");
+        }
         if self.validators.is_some() {
             return Err("direct mining is disabled when consensus validators are configured");
         }
@@ -226,6 +229,9 @@ impl Node {
         address: &str,
         local: PeerInfo,
     ) -> Result<usize, &'static str> {
+        if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+            return Err("mainnet direct block sync is disabled");
+        }
         if self.validators.is_some() {
             return Err("direct block sync is disabled when consensus validators are configured");
         }
@@ -299,6 +305,9 @@ impl Node {
                 self.mempool.transactions().cloned().collect(),
             ))),
             NetworkMessage::LatestBlock(block) => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet direct block acceptance is disabled");
+                }
                 if self.validators.is_some() {
                     return Err("direct block acceptance is disabled when consensus validators are configured");
                 }
