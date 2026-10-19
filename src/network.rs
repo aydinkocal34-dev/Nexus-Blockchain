@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -13,6 +14,7 @@ use crate::p2p_limits::{ConnectionGuard, ConnectionManager};
 use crate::{Block, Transaction};
 
 const MAX_FRAME_SIZE: usize = 4 * 1024 * 1024;
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 const INBOUND_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -222,7 +224,14 @@ impl PeerManager {
             }
         }
 
-        self.connections.lock().await.remove(&peer_id);
+        let mut connections = self.connections.lock().await;
+        let is_current_connection = connections
+            .get(&peer_id)
+            .map(|current| Arc::ptr_eq(current, &writer))
+            .unwrap_or(false);
+        if is_current_connection {
+            connections.remove(&peer_id);
+        }
     }
 
     pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<PeerInfo> {
@@ -239,9 +248,16 @@ impl PeerManager {
             })?;
         let (mut reader, mut writer) = stream.into_split();
 
-        write_message(&mut writer, &NetworkMessage::Hello(local)).await?;
+        tokio::time::timeout(
+            HANDSHAKE_TIMEOUT,
+            write_message(&mut writer, &NetworkMessage::Hello(local)),
+        )
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "peer handshake write timed out"))??;
 
-        let response = read_message(&mut reader).await?;
+        let response = tokio::time::timeout(HANDSHAKE_TIMEOUT, read_message(&mut reader))
+            .await
+            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "peer handshake read timed out"))??;
         let NetworkMessage::Hello(peer) = response else {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "expected hello"));
         };
@@ -301,7 +317,12 @@ impl PeerManager {
                 tokio::spawn(async move {
                     let (mut reader, mut writer) = stream.into_split();
 
-                    let Ok(NetworkMessage::Hello(peer)) = read_message(&mut reader).await else {
+                    let Ok(Ok(NetworkMessage::Hello(peer))) = tokio::time::timeout(
+                        HANDSHAKE_TIMEOUT,
+                        read_message(&mut reader),
+                    )
+                    .await
+                    else {
                         return;
                     };
 
@@ -309,10 +330,12 @@ impl PeerManager {
                         return;
                     }
 
-                    if write_message(&mut writer, &NetworkMessage::Hello(local))
-                        .await
-                        .is_err()
-                    {
+                    let hello_result = tokio::time::timeout(
+                        HANDSHAKE_TIMEOUT,
+                        write_message(&mut writer, &NetworkMessage::Hello(local)),
+                    )
+                    .await;
+                    if !matches!(hello_result, Ok(Ok(()))) {
                         return;
                     }
 
