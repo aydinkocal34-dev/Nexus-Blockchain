@@ -1,7 +1,8 @@
 use crate::blockchain::Blockchain;
-use crate::config::DEVNET_CHAIN_ID;
+use crate::config::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID};
 use crate::consensus::{CommitStatus, ConsensusEngine, Proposal, ValidatorSet, Vote, VoteDecision};
 use crate::consensus_auth::SignedVote;
+use crate::consensus_signing_store::ConsensusSigningStore;
 use crate::mempool::Mempool;
 use crate::network::{
     read_message, write_message, NetworkEvent, NetworkMessage, PeerInfo, PeerManager,
@@ -9,6 +10,7 @@ use crate::network::{
 use crate::transaction::Transaction;
 use crate::Wallet;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
@@ -22,6 +24,7 @@ pub struct Node {
     pub node_id: Option<String>,
     consensus_public_keys: HashMap<String, [u8; 32]>,
     consensus_signer: Option<Wallet>,
+    consensus_signing_store: Option<ConsensusSigningStore>,
     authenticated_consensus: bool,
     pending_consensus_block: Option<crate::Block>,
 }
@@ -41,6 +44,7 @@ impl Node {
             node_id: None,
             consensus_public_keys: HashMap::new(),
             consensus_signer: None,
+            consensus_signing_store: None,
             authenticated_consensus: false,
             pending_consensus_block: None,
         }
@@ -85,6 +89,16 @@ impl Node {
         }
         self.consensus_signer = Some(signer);
         self.authenticated_consensus = true;
+    }
+
+    /// Configure the durable anti-double-sign store. Signed local consensus
+    /// votes fail closed until this store has been opened and locked.
+    pub fn configure_consensus_signing_store(
+        &mut self,
+        path: impl Into<PathBuf>,
+    ) -> std::io::Result<()> {
+        self.consensus_signing_store = Some(ConsensusSigningStore::open(path)?);
+        Ok(())
     }
 
     /// Bind a validator identity to its expected Ed25519 public key.
@@ -178,6 +192,9 @@ impl Node {
     }
 
     pub fn mine_pending(&mut self, timestamp: u64) -> Result<usize, &'static str> {
+        if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+            return Err("mainnet direct mining is disabled");
+        }
         if self.validators.is_some() {
             return Err("direct mining is disabled when consensus validators are configured");
         }
@@ -212,6 +229,9 @@ impl Node {
         address: &str,
         local: PeerInfo,
     ) -> Result<usize, &'static str> {
+        if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+            return Err("mainnet direct block sync is disabled");
+        }
         if self.validators.is_some() {
             return Err("direct block sync is disabled when consensus validators are configured");
         }
@@ -285,6 +305,9 @@ impl Node {
                 self.mempool.transactions().cloned().collect(),
             ))),
             NetworkMessage::LatestBlock(block) => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet direct block acceptance is disabled");
+                }
                 if self.validators.is_some() {
                     return Err("direct block acceptance is disabled when consensus validators are configured");
                 }
@@ -363,23 +386,36 @@ impl Node {
                 if validators.weight_of(&voter) == 0 {
                     return Err("node identity is not a validator");
                 }
+                self.consensus.propose(validators, signed.proposal)?;
+                let vote = Vote {
+                    height: expected_index,
+                    block_hash: block.hash.clone(),
+                    voter,
+                    decision: VoteDecision::Commit,
+                };
+                let chain_id = self.blockchain.state.chain_id();
+                let Some(signing_store) = self.consensus_signing_store.as_mut() else {
+                    self.consensus.clear();
+                    return Err("persistent consensus signing store is not configured");
+                };
+                let reserve_result = signing_store.reserve_vote(chain_id, &vote);
+                if let Err(error) = reserve_result {
+                    self.consensus.clear();
+                    return Err(error);
+                }
                 let signer = self
                     .consensus_signer
                     .as_ref()
                     .ok_or("consensus signer is not configured")?;
-                self.consensus.propose(validators, signed.proposal)?;
-                self.pending_consensus_block = Some(block.clone());
-                let vote = Vote {
-                    height: expected_index,
-                    block_hash: block.hash,
-                    voter,
-                    decision: VoteDecision::Commit,
-                };
+                self.pending_consensus_block = Some(block);
                 Ok(Some(NetworkMessage::SignedVote(
-                    SignedVote::sign_for_chain(vote, signer, self.blockchain.state.chain_id()),
+                    SignedVote::sign_for_chain(vote, signer, chain_id),
                 )))
             }
             NetworkMessage::ProposeBlock { block, proposer } => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet requires authenticated consensus");
+                }
                 if self.authenticated_consensus {
                     return Err("unsigned consensus messages are disabled");
                 }
@@ -440,6 +476,9 @@ impl Node {
                 voter,
                 decision,
             } => {
+                if self.blockchain.state.chain_id() == MAINNET_CHAIN_ID {
+                    return Err("mainnet requires authenticated consensus");
+                }
                 if self.authenticated_consensus {
                     return Err("unsigned consensus messages are disabled");
                 }
@@ -469,6 +508,9 @@ impl Node {
                         return Err("committed vote does not match pending block");
                     }
                     self.blockchain.apply_existing_block(block)?;
+                    self.consensus.clear();
+                } else if status == CommitStatus::Rejected {
+                    self.pending_consensus_block = None;
                     self.consensus.clear();
                 }
                 Ok(None)
@@ -500,6 +542,9 @@ impl Node {
             }
             self.blockchain.apply_existing_block(block)?;
             self.consensus.clear();
+        } else if status == CommitStatus::Rejected {
+            self.pending_consensus_block = None;
+            self.consensus.clear();
         }
         Ok(None)
     }
@@ -524,5 +569,69 @@ impl Node {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod mainnet_consensus_safety_tests {
+    use super::Node;
+    use crate::config::MAINNET_CHAIN_ID;
+    use crate::network::NetworkMessage;
+    use crate::Block;
+
+    #[test]
+    fn mainnet_rejects_unsigned_proposal() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let block = Block::new(
+            1,
+            2,
+            node.blockchain.latest_block().hash.clone(),
+            Vec::new(),
+        );
+        let error = node
+            .handle_network_message(NetworkMessage::ProposeBlock {
+                block,
+                proposer: "untrusted".to_string(),
+            })
+            .unwrap_err();
+        assert_eq!(error, "mainnet requires authenticated consensus");
+    }
+
+    #[test]
+    fn mainnet_rejects_unsigned_vote() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let error = node
+            .handle_network_message(NetworkMessage::Vote {
+                height: 1,
+                block_hash: "block-x".to_string(),
+                voter: "untrusted".to_string(),
+                decision: true,
+            })
+            .unwrap_err();
+        assert_eq!(error, "mainnet requires authenticated consensus");
+    }
+
+    #[test]
+    fn mainnet_rejects_direct_block_acceptance() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let block = Block::new(
+            1,
+            2,
+            node.blockchain.latest_block().hash.clone(),
+            Vec::new(),
+        );
+        assert_eq!(
+            node.handle_network_message(NetworkMessage::LatestBlock(block)),
+            Err("mainnet direct block acceptance is disabled")
+        );
+    }
+
+    #[test]
+    fn mainnet_rejects_direct_mining() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        assert_eq!(
+            node.mine_pending(2),
+            Err("mainnet direct mining is disabled")
+        );
     }
 }

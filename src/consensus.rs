@@ -1,7 +1,7 @@
 use crate::Block;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsensusDecision {
@@ -182,11 +182,18 @@ impl VoteCollector {
         self.committed_weight(validators) >= validators.quorum_weight()
     }
 
+    pub fn is_rejected(&self, validators: &ValidatorSet) -> bool {
+        self.rejected_weight(validators) >= validators.quorum_weight()
+    }
+
     pub fn voters(&self) -> BTreeSet<&str> {
         self.votes.iter().map(|vote| vote.voter.as_str()).collect()
     }
 }
 
+/// Height-only synchronization heuristic, not a consensus fork-choice rule.
+/// A higher index alone does not prove finality; validator nodes must rely on
+/// authenticated consensus and block validation before adopting a candidate.
 pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
     if candidate.index > local.index {
         ConsensusDecision::Accept
@@ -199,12 +206,16 @@ pub fn prefer_candidate(local: &Block, candidate: &Block) -> ConsensusDecision {
 pub enum CommitStatus {
     Pending,
     Committed,
+    Rejected,
 }
 
 #[derive(Debug, Clone)]
 pub struct ConsensusEngine {
     proposal: Option<Proposal>,
     collector: Option<VoteCollector>,
+    /// First accepted vote per (height, validator); used to detect equivocation
+    /// even when a vote arrives through a different collector path.
+    seen_votes: BTreeMap<(u64, String), (String, VoteDecision)>,
 }
 
 impl ConsensusEngine {
@@ -212,6 +223,7 @@ impl ConsensusEngine {
         Self {
             proposal: None,
             collector: None,
+            seen_votes: BTreeMap::new(),
         }
     }
 
@@ -232,6 +244,11 @@ impl ConsensusEngine {
             }
             return Err("active proposal must be cleared before changing height");
         }
+        // Keep only current-height observations to bound memory usage while
+        // preserving equivocation detection if a collector is recreated at
+        // the same height.
+        self.seen_votes
+            .retain(|(height, _), _| *height == proposal.height);
         self.collector = Some(VoteCollector::new(&proposal));
         self.proposal = Some(proposal);
         Ok(())
@@ -242,13 +259,25 @@ impl ConsensusEngine {
         validators: &ValidatorSet,
         vote: Vote,
     ) -> Result<CommitStatus, &'static str> {
+        let key = (vote.height, vote.voter.clone());
+        if let Some((existing_hash, existing_decision)) = self.seen_votes.get(&key) {
+            if existing_hash != &vote.block_hash || existing_decision != &vote.decision {
+                return Err("equivocation detected");
+            }
+            return Err("duplicate validator vote");
+        }
+
         let collector = self.collector.as_mut().ok_or("no active proposal")?;
-        let committed = collector.add_vote(validators, vote)?;
-        Ok(if committed {
-            CommitStatus::Committed
+        collector.add_vote(validators, vote.clone())?;
+        self.seen_votes
+            .insert(key, (vote.block_hash.clone(), vote.decision));
+        if collector.is_committed(validators) {
+            Ok(CommitStatus::Committed)
+        } else if collector.is_rejected(validators) {
+            Ok(CommitStatus::Rejected)
         } else {
-            CommitStatus::Pending
-        })
+            Ok(CommitStatus::Pending)
+        }
     }
 
     pub fn proposal(&self) -> Option<&Proposal> {
@@ -309,5 +338,81 @@ mod quorum_overflow_tests {
             let expected = (((u128::from(total) * 2) / 3) + 1).min(u128::from(total)) as u64;
             assert_eq!(validators.quorum_weight(), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod consensus_hardening_tests {
+    use super::{
+        CommitStatus, ConsensusEngine, Proposal, Validator, ValidatorSet, Vote, VoteDecision,
+    };
+
+    fn validators() -> ValidatorSet {
+        ValidatorSet::new(
+            ["a", "b", "c", "d"]
+                .into_iter()
+                .map(|id| Validator::new(id, 1).unwrap())
+                .collect(),
+        )
+        .unwrap()
+    }
+
+    fn proposal(validators: &ValidatorSet, height: u64, hash: &str) -> Proposal {
+        Proposal::new(
+            height,
+            hash,
+            validators.leader_for_height(height).node_id.clone(),
+        )
+    }
+
+    fn vote(height: u64, hash: &str, voter: &str, decision: VoteDecision) -> Vote {
+        Vote {
+            height,
+            block_hash: hash.to_string(),
+            voter: voter.to_string(),
+            decision,
+        }
+    }
+
+    #[test]
+    fn reject_quorum_is_reported_as_rejected() {
+        let validators = validators();
+        let mut engine = ConsensusEngine::new();
+        engine
+            .propose(&validators, proposal(&validators, 10, "block-x"))
+            .unwrap();
+
+        for voter in ["a", "b", "c"] {
+            let status = engine
+                .record_vote(
+                    &validators,
+                    vote(10, "block-x", voter, VoteDecision::Reject),
+                )
+                .unwrap();
+            if voter == "c" {
+                assert_eq!(status, CommitStatus::Rejected);
+            }
+        }
+    }
+
+    #[test]
+    fn conflicting_vote_from_same_validator_is_equivocation() {
+        let validators = validators();
+        let mut engine = ConsensusEngine::new();
+        engine
+            .propose(&validators, proposal(&validators, 10, "block-x"))
+            .unwrap();
+        engine
+            .record_vote(&validators, vote(10, "block-x", "a", VoteDecision::Commit))
+            .unwrap();
+
+        assert_eq!(
+            engine.record_vote(&validators, vote(10, "block-y", "a", VoteDecision::Commit)),
+            Err("equivocation detected")
+        );
+        assert_eq!(
+            engine.record_vote(&validators, vote(10, "block-x", "a", VoteDecision::Reject)),
+            Err("equivocation detected")
+        );
     }
 }
