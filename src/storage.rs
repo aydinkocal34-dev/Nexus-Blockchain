@@ -60,7 +60,7 @@ fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|error| io::Error::new(io::ErrorKind::Other, error))?
+        .map_err(io::Error::other)?
         .as_nanos();
     let temporary_path = parent.join(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
 
