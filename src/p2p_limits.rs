@@ -33,7 +33,9 @@ impl ConnectionManager {
     }
 
     fn lock(&self) -> MutexGuard<'_, ConnectionManagerInner> {
-        self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Reserves a connection slot atomically, or returns None when a limit is reached.
@@ -158,7 +160,10 @@ mod tests {
             threads.push(thread::spawn(move || manager.try_accept(address)));
         }
 
-        let guards: Vec<_> = threads.into_iter().filter_map(|t| t.join().unwrap()).collect();
+        let guards: Vec<_> = threads
+            .into_iter()
+            .filter_map(|t| t.join().unwrap())
+            .collect();
         assert_eq!(guards.len(), MAX_CONNECTIONS_PER_IP);
         assert_eq!(manager.total_connections(), MAX_CONNECTIONS_PER_IP);
     }
