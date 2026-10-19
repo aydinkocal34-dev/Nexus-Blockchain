@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use nexus_blockchain::{
     consensus::{Proposal, Validator, ValidatorSet, Vote, VoteDecision},
@@ -35,6 +36,15 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
         )
         .unwrap(),
     );
+    let signing_path = std::env::temp_dir().join(format!(
+        "nexus-consensus-auth-{}-{}.json",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    node.configure_consensus_signing_store(&signing_path).unwrap();
 
     for id in ids {
         node.configure_validator_public_key(id, wallets[id].public_key_bytes())
@@ -125,6 +135,17 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
         unsigned_result,
         Err("unsigned consensus messages are disabled")
     );
+
+    drop(node);
+    let _ = std::fs::remove_file(&signing_path);
+    let _ = std::fs::remove_file(signing_path.with_file_name(format!(
+        "{}.lock",
+        signing_path.file_name().unwrap().to_string_lossy()
+    )));
+    let _ = std::fs::remove_file(signing_path.with_file_name(format!(
+        "{}.anchor",
+        signing_path.file_name().unwrap().to_string_lossy()
+    )));
 }
 
 #[test]
