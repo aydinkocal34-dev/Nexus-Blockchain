@@ -556,3 +556,44 @@ impl Node {
         Ok(())
     }
 }
+
+
+#[cfg(test)]
+mod mainnet_consensus_safety_tests {
+    use super::Node;
+    use crate::config::MAINNET_CHAIN_ID;
+    use crate::network::NetworkMessage;
+    use crate::Block;
+
+    #[test]
+    fn mainnet_rejects_unsigned_proposal() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let block = Block::new(
+            1,
+            2,
+            node.blockchain.latest_block().hash.clone(),
+            Vec::new(),
+        );
+        let error = node
+            .handle_network_message(NetworkMessage::ProposeBlock {
+                block,
+                proposer: "untrusted".to_string(),
+            })
+            .unwrap_err();
+        assert_eq!(error, "mainnet requires authenticated consensus");
+    }
+
+    #[test]
+    fn mainnet_rejects_unsigned_vote() {
+        let mut node = Node::new_for_chain(1, MAINNET_CHAIN_ID);
+        let error = node
+            .handle_network_message(NetworkMessage::Vote {
+                height: 1,
+                block_hash: "block-x".to_string(),
+                voter: "untrusted".to_string(),
+                decision: true,
+            })
+            .unwrap_err();
+        assert_eq!(error, "mainnet requires authenticated consensus");
+    }
+}
