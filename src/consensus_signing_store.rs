@@ -43,7 +43,9 @@ impl ConsensusSigningStore {
     /// that requires an independently protected monotonic anchor.
     pub fn open(path: impl Into<PathBuf>) -> io::Result<Self> {
         let path = path.into();
-        let parent = path.parent().filter(|p| !p.as_os_str().is_empty())
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)?;
 
@@ -52,6 +54,7 @@ impl ConsensusSigningStore {
         let lock_path = parent.join(lock_name);
         let lock_file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .open(lock_path)?;
@@ -144,7 +147,10 @@ impl ConsensusSigningStore {
     }
 
     fn persist(&self, records: &[SigningRecord]) -> io::Result<()> {
-        let parent = self.path.parent().filter(|p| !p.as_os_str().is_empty())
+        let parent = self
+            .path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)?;
         let bytes = serde_json::to_vec(records)
@@ -175,7 +181,9 @@ fn records_hash(records: &[SigningRecord]) -> io::Result<String> {
 }
 
 fn atomic_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let parent = path.parent().filter(|p| !p.as_os_str().is_empty())
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let nonce = SystemTime::now()
