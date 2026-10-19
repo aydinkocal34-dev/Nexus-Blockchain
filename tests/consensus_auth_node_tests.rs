@@ -44,8 +44,7 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
             .unwrap()
             .as_nanos()
     ));
-    node
-        .configure_consensus_signing_store(&signing_path)
+    node.configure_consensus_signing_store(&signing_path)
         .unwrap();
 
     for id in ids {
