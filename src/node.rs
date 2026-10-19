@@ -380,7 +380,7 @@ impl Node {
                 self.consensus.propose(validators, signed.proposal)?;
                 let vote = Vote {
                     height: expected_index,
-                    block_hash: block.hash,
+                    block_hash: block.hash.clone(),
                     voter,
                     decision: VoteDecision::Commit,
                 };
