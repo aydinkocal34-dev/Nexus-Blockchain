@@ -7,6 +7,7 @@ pub mod economics;
 pub mod mempool;
 pub mod network;
 pub mod node;
+pub mod p2p_limits;
 pub mod state;
 pub mod storage;
 pub mod transaction;
