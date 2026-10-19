@@ -241,6 +241,11 @@ impl ConsensusEngine {
             }
             return Err("active proposal must be cleared before changing height");
         }
+        // Keep only current-height observations to bound memory usage while
+        // preserving equivocation detection if a collector is recreated at
+        // the same height.
+        self.seen_votes
+            .retain(|(height, _), _| *height == proposal.height);
         self.collector = Some(VoteCollector::new(&proposal));
         self.proposal = Some(proposal);
         Ok(())
