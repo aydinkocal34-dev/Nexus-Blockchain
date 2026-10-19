@@ -44,7 +44,9 @@ fn node_authenticates_signed_consensus_and_rejects_unsigned_messages() {
             .unwrap()
             .as_nanos()
     ));
-    node.configure_consensus_signing_store(&signing_path).unwrap();
+    node
+        .configure_consensus_signing_store(&signing_path)
+        .unwrap();
 
     for id in ids {
         node.configure_validator_public_key(id, wallets[id].public_key_bytes())
