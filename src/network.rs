@@ -9,6 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 
 use crate::consensus_auth::{SignedProposal, SignedVote};
+use crate::p2p_limits::{ConnectionGuard, ConnectionManager};
 use crate::{Block, Transaction};
 
 const MAX_FRAME_SIZE: usize = 4 * 1024 * 1024;
@@ -119,6 +120,7 @@ pub struct PeerManager {
     connections: Arc<Mutex<HashMap<String, SharedWriter>>>,
     inbound_tx: mpsc::Sender<NetworkEvent>,
     inbound_rx: Arc<Mutex<Option<mpsc::Receiver<NetworkEvent>>>>,
+    connection_limits: ConnectionManager,
 }
 
 impl PeerManager {
@@ -129,6 +131,7 @@ impl PeerManager {
             connections: Arc::new(Mutex::new(HashMap::new())),
             inbound_tx,
             inbound_rx: Arc::new(Mutex::new(Some(inbound_rx))),
+            connection_limits: ConnectionManager::new(),
         }
     }
 
@@ -185,7 +188,7 @@ impl PeerManager {
         Ok(sent)
     }
 
-    async fn serve_reader(&self, peer_id: String, mut reader: OwnedReadHalf, writer: SharedWriter) {
+    async fn serve_reader(\n        &self,\n        peer_id: String,\n        mut reader: OwnedReadHalf,\n        writer: SharedWriter,\n        _connection_guard: ConnectionGuard,\n    ) {
         loop {
             let message = match read_message(&mut reader).await {
                 Ok(message) => message,
@@ -218,6 +221,10 @@ impl PeerManager {
 
     pub async fn connect(&self, address: &str, local: PeerInfo) -> io::Result<PeerInfo> {
         let stream = TcpStream::connect(address).await?;
+        let remote_ip = stream.peer_addr()?.ip();
+        let connection_guard = self.connection_limits.try_accept(remote_ip).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::ConnectionRefused, "peer connection limit reached")
+        })?;
         let (mut reader, mut writer) = stream.into_split();
 
         write_message(&mut writer, &NetworkMessage::Hello(local)).await?;
@@ -238,7 +245,7 @@ impl PeerManager {
         let manager = self.clone();
         let peer_id = peer.node_id.clone();
         tokio::spawn(async move {
-            manager.serve_reader(peer_id, reader, shared_writer).await;
+            manager\n                .serve_reader(peer_id, reader, shared_writer, connection_guard)\n                .await;
         });
 
         Ok(peer)
@@ -263,6 +270,13 @@ impl PeerManager {
         Ok(tokio::spawn(async move {
             loop {
                 let Ok((stream, _)) = listener.accept().await else {
+                    continue;
+                };
+                let Ok(remote_addr) = stream.peer_addr() else {
+                    continue;
+                };
+                let Some(connection_guard) = manager.connection_limits.try_accept(remote_addr.ip()) else {
+                    drop(stream);
                     continue;
                 };
 
@@ -296,7 +310,7 @@ impl PeerManager {
                         .insert(peer.node_id.clone(), shared_writer.clone());
 
                     manager
-                        .serve_reader(peer.node_id, reader, shared_writer)
+                        .serve_reader(peer.node_id, reader, shared_writer, connection_guard)
                         .await;
                 });
             }
