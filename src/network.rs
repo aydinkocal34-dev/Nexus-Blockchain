@@ -257,7 +257,9 @@ impl PeerManager {
 
         let response = tokio::time::timeout(HANDSHAKE_TIMEOUT, read_message(&mut reader))
             .await
-            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "peer handshake read timed out"))??;
+            .map_err(|_| {
+                io::Error::new(io::ErrorKind::TimedOut, "peer handshake read timed out")
+            })??;
         let NetworkMessage::Hello(peer) = response else {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "expected hello"));
         };
@@ -317,11 +319,8 @@ impl PeerManager {
                 tokio::spawn(async move {
                     let (mut reader, mut writer) = stream.into_split();
 
-                    let Ok(Ok(NetworkMessage::Hello(peer))) = tokio::time::timeout(
-                        HANDSHAKE_TIMEOUT,
-                        read_message(&mut reader),
-                    )
-                    .await
+                    let Ok(Ok(NetworkMessage::Hello(peer))) =
+                        tokio::time::timeout(HANDSHAKE_TIMEOUT, read_message(&mut reader)).await
                     else {
                         return;
                     };
